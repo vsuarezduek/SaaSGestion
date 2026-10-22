@@ -15,7 +15,7 @@ const PARAMS = { N: 2 ** 15, r: 8, p: 1 } as const; // ~32 MiB, ~80 ms
 const KEYLEN = 32;
 const MAXMEM = 128 * 1024 * 1024;
 
-export const LARGO_MINIMO_CONTRASENA = 10;
+export const LARGO_MINIMO_CONTRASENA = 8;
 
 export function validarContrasena(contrasena: string): string | null {
   if (contrasena.length < LARGO_MINIMO_CONTRASENA) return `La contraseña debe tener al menos ${LARGO_MINIMO_CONTRASENA} caracteres`;

@@ -29,6 +29,8 @@ test('contraseña: la normalización unicode no cambia el resultado', async () =
 
 test('validaciones de contraseña y PIN', () => {
   assert.notEqual(validarContrasena('corta'), null);
+  assert.notEqual(validarContrasena('1234567'), null); // 7 caracteres: rechazada
+  assert.equal(validarContrasena('12345678'), null);   // 8 caracteres: mínimo aceptado
   assert.equal(validarContrasena('suficientemente-larga'), null);
   assert.equal(validarPin('1234'), null);
   assert.notEqual(validarPin('12'), null);
