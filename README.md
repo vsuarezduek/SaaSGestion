@@ -24,7 +24,8 @@ Un sistema único, en la nube, donde cada comercio se registra, configura su neg
 | Arquitectura y decisiones | Propuesta — `docs/ARQUITECTURA.md` |
 | Hoja de ruta | Propuesta — `docs/ROADMAP.md` |
 | Etapa 0 · base de datos multi-comercio, tests y CI | En curso — `packages/db`, `scripts/` |
-| Etapa 0 · app, inicio de sesión, entornos | Por empezar |
+| Etapa 0 · seguridad: contraseñas, sesiones, permisos (`packages/seguridad`) | En curso |
+| Etapa 0 · app web, entornos y despliegue en Railway | Por empezar |
 
 ## Documentos
 
@@ -49,4 +50,10 @@ Un sistema único, en la nube, donde cada comercio se registra, configura su neg
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/saasgestion
 scripts/db-migrar.sh   # aplica las migraciones pendientes
 scripts/db-test.sh     # tests de aislamiento entre comercios y libros de solo agregado
+```
+
+## Tests de código
+
+```bash
+npm test   # Node 22.18 o superior; sin instalar dependencias
 ```

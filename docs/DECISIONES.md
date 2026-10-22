@@ -36,3 +36,9 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 
 ## D-007 · Facturación ARCA mediante intermediario al inicio
 - **Estado:** Propuesta (se decide en la etapa 3, con pruebas en homologación).
+
+## D-008 · Contraseñas con scrypt (incluido en Node) y sesiones con token hasheado
+- **Estado:** Propuesta.
+- **Decisión:** contraseñas y PIN con scrypt (N=2^15, r=8, p=1, sal aleatoria de 16 bytes, parámetros guardados junto al hash para poder subirlos después). Las sesiones usan un token aleatorio de 256 bits en cookie HttpOnly; la base guarda solo su sha256. Duración de sesión: 12 horas.
+- **Motivo:** sin dependencias externas para lo más sensible, algoritmo aprobado por OWASP, y totalmente testeable. Si se prefiere argon2id, el formato versionado del hash permite migrar.
+- **Pendiente para el inicio de sesión:** límite de intentos por usuario/IP y registro en auditoría de los ingresos fallidos.

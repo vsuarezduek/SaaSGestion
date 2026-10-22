@@ -28,3 +28,13 @@ jobs:
         run: scripts/db-migrar.sh
       - name: Tests de base de datos
         run: scripts/db-test.sh
+
+  seguridad:
+    name: Seguridad (contraseñas, sesiones, permisos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
