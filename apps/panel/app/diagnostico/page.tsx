@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { conTenant, nombreVariable, pool, urlBase } from '../../lib/db';
+import { conTenant, nombreVariable, pool, urlBase } from '../../lib/db.ts';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };

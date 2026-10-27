@@ -30,19 +30,21 @@ export function pool(): Pool {
   return globalThis.__poolSaasGestion;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export async function cerrarPool(): Promise<void> {
+  const p = globalThis.__poolSaasGestion;
+  globalThis.__poolSaasGestion = undefined;
+  if (p) await p.end();
+}
 
-/**
- * Ejecuta `fn` dentro de una transacción como el rol de la aplicación (app_user, sin permiso para saltear
- * Row Level Security) y con el comercio fijado. Toda consulta de negocio debe pasar por acá.
- */
-export async function conTenant<T>(tenantId: string, fn: (cliente: PoolClient) => Promise<T>): Promise<T> {
-  if (!UUID.test(tenantId)) throw new Error('tenant_id inválido');
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const esUuid = (s: string): boolean => UUID.test(s);
+
+async function enTransaccion<T>(preparar: (c: PoolClient) => Promise<void>, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const cliente = await pool().connect();
   try {
     await cliente.query('BEGIN');
     await cliente.query('SET LOCAL ROLE app_user');
-    await cliente.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    await preparar(cliente);
     const resultado = await fn(cliente);
     await cliente.query('COMMIT');
     return resultado;
@@ -52,4 +54,22 @@ export async function conTenant<T>(tenantId: string, fn: (cliente: PoolClient) =
   } finally {
     cliente.release();
   }
+}
+
+/**
+ * Ejecuta `fn` dentro de una transacción como el rol de la aplicación (app_user, sin permiso para saltear
+ * Row Level Security) y con el comercio fijado. Toda consulta de negocio debe pasar por acá.
+ * Si `fn` devuelve normalmente se confirma (COMMIT); si lanza un error se deshace (ROLLBACK).
+ */
+export async function conTenant<T>(tenantId: string, fn: (cliente: PoolClient) => Promise<T>): Promise<T> {
+  if (!esUuid(tenantId)) throw new Error('tenant_id inválido');
+  return enTransaccion((c) => c.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]).then(() => undefined), fn);
+}
+
+/**
+ * Para lo que ocurre antes de conocer el comercio (resolver el comercio por su identificador, crear uno nuevo).
+ * Corre como app_user, sin comercio fijado: solo puede usar las funciones de entrada de la base.
+ */
+export async function sinTenant<T>(fn: (cliente: PoolClient) => Promise<T>): Promise<T> {
+  return enTransaccion(async () => undefined, fn);
 }

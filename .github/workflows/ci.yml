@@ -70,6 +70,8 @@ jobs:
         run: |
           node scripts/migrar.mjs
           node scripts/migrar.mjs
+      - name: Tests de ingreso, sesiones, límite de intentos y aislamiento
+        run: npm test
       - name: Tests de base de datos sobre lo aplicado por la app
         working-directory: .
         env:
