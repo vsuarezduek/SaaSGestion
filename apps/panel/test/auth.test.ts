@@ -17,17 +17,20 @@ const sufijo = Date.now().toString(36);
 const slugA = `prueba-a-${sufijo}`;
 const slugB = `prueba-b-${sufijo}`;
 const slugC = `prueba-c-${sufijo}`;
+const slugD = `prueba-d-${sufijo}`;
 const EMAIL = 'ana@ejemplo.test'; // el mismo en los dos comercios: está permitido
 const CLAVE_A = 'clave-de-a-123';
 const CLAVE_B = 'clave-de-b-456';
 let idA = '';
 let idB = '';
 let idC = '';
+let idD = '';
 
 before(async () => {
   idA = await crearComercio({ slug: slugA, nombre: 'Comercio A', email: EMAIL, nombreAdmin: 'Ana A', contrasena: CLAVE_A });
   idB = await crearComercio({ slug: slugB, nombre: 'Comercio B', email: EMAIL, nombreAdmin: 'Ana B', contrasena: CLAVE_B });
   idC = await crearComercio({ slug: slugC, nombre: 'Comercio C', email: EMAIL, nombreAdmin: 'Ana C', contrasena: CLAVE_B });
+  idD = await crearComercio({ slug: slugD, nombre: 'Comercio D', email: EMAIL, nombreAdmin: 'Ana D', contrasena: CLAVE_B });
 });
 
 after(async () => {
@@ -91,13 +94,14 @@ test('tras varios intentos fallidos el correo se bloquea, incluso con la clave c
 });
 
 test('un ingreso correcto borra los fallos anteriores de ese correo', async () => {
+  assert.ok(idD);
   const ip = '10.3.0.1';
   for (let i = 0; i < MAX_FALLOS_POR_EMAIL - 1; i++) {
-    await ingresar({ slug: slugB, email: EMAIL, contrasena: 'incorrecta-123', ip: `10.3.1.${i}` });
+    await ingresar({ slug: slugD, email: EMAIL, contrasena: 'incorrecta-123', ip: `10.3.1.${i}` });
   }
-  assert.ok((await ingresar({ slug: slugB, email: EMAIL, contrasena: CLAVE_B, ip })).ok);
+  assert.ok((await ingresar({ slug: slugD, email: EMAIL, contrasena: CLAVE_B, ip })).ok);
   // Quedó en cero: se pueden volver a cometer errores sin bloqueo inmediato.
-  assert.deepEqual(await ingresar({ slug: slugB, email: EMAIL, contrasena: 'incorrecta-123', ip }), { ok: false, motivo: 'credenciales' });
+  assert.deepEqual(await ingresar({ slug: slugD, email: EMAIL, contrasena: 'incorrecta-123', ip }), { ok: false, motivo: 'credenciales' });
 });
 
 test('la auditoría registra ingresos y fallos, y cada comercio ve solo la suya', async () => {
