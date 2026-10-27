@@ -31,7 +31,7 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Motivo:** menos piezas al empezar; la lógica de negocio vive en `packages/dominio`, independiente del framework, para poder separarla sin reescribir.
 
 ## D-006 · Alojamiento inicial: Railway (aplicación, tareas y Postgres)
-- **Estado:** Propuesta.
+- **Estado:** Reemplazada por D-009 (Railway no aceptaba cuentas nuevas).
 - **Motivo:** simple y de costo bajo. La tienda online puede ir a Vercel más adelante si hace falta CDN.
 
 ## D-007 · Facturación ARCA mediante intermediario al inicio
@@ -42,3 +42,11 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Decisión:** contraseñas y PIN con scrypt (N=2^15, r=8, p=1, sal aleatoria de 16 bytes, parámetros guardados junto al hash para poder subirlos después). Las sesiones usan un token aleatorio de 256 bits en cookie HttpOnly; la base guarda solo su sha256. Duración de sesión: 12 horas.
 - **Motivo:** sin dependencias externas para lo más sensible, algoritmo aprobado por OWASP, y totalmente testeable. Si se prefiere argon2id, el formato versionado del hash permite migrar.
 - **Pendiente para el inicio de sesión:** límite de intentos por usuario/IP y registro en auditoría de los ingresos fallidos.
+
+## D-009 · Alojamiento inicial: Vercel (aplicación) + Neon (Postgres)
+- **Estado:** Aceptada para la etapa 0.
+- **Decisión:** la aplicación Next.js corre en Vercel (región São Paulo) y la base es Postgres en Neon (São Paulo). Dos ramas de Neon: `main` reservada para producción y `staging` para pruebas, solo con datos de prueba. La aplicación elige la base según el entorno: Production usa `DATABASE_URL`; cualquier otro entorno usa `DATABASE_URL_STAGING`, sin plan B (D-001 a D-008 siguen vigentes).
+- **Aislamiento:** la aplicación se conecta como dueño y dentro de cada transacción ejecuta `SET LOCAL ROLE app_user` y fija el comercio, para que Row Level Security aplique siempre (migración 0002).
+- **Migraciones:** en Preview se aplican en cada compilación; en Production se aplican a mano.
+- **Costo:** planes gratuitos mientras sea desarrollo. Vercel Hobby no permite uso comercial: antes de operar a Mística sobre el sistema real hay que pasar a un plan pago y tener copias de seguridad de la base.
+- **Pendiente:** tareas en segundo plano (facturación, mails) con tareas programadas de Vercel o un servicio aparte; las ramas de Neon que vencen solas no sirven para staging (se crea sin vencimiento).

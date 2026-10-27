@@ -38,3 +38,40 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  panel:
+    name: Aplicación (tipos, compilación y migraciones)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/panel
+    env:
+      DATABASE_URL_LOCAL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Tipos (TypeScript estricto)
+        run: npm run typecheck
+      - name: Compilar
+        run: npm run build
+      - name: Aplicar migraciones con el aplicador de la app (dos veces)
+        run: |
+          node scripts/migrar.mjs
+          node scripts/migrar.mjs
+      - name: Tests de base de datos sobre lo aplicado por la app
+        working-directory: .
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: scripts/db-test.sh
