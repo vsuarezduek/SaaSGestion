@@ -16,15 +16,18 @@ import { cerrarPool, conTenant } from '../lib/db.ts';
 const sufijo = Date.now().toString(36);
 const slugA = `prueba-a-${sufijo}`;
 const slugB = `prueba-b-${sufijo}`;
+const slugC = `prueba-c-${sufijo}`;
 const EMAIL = 'ana@ejemplo.test'; // el mismo en los dos comercios: está permitido
 const CLAVE_A = 'clave-de-a-123';
 const CLAVE_B = 'clave-de-b-456';
 let idA = '';
 let idB = '';
+let idC = '';
 
 before(async () => {
   idA = await crearComercio({ slug: slugA, nombre: 'Comercio A', email: EMAIL, nombreAdmin: 'Ana A', contrasena: CLAVE_A });
   idB = await crearComercio({ slug: slugB, nombre: 'Comercio B', email: EMAIL, nombreAdmin: 'Ana B', contrasena: CLAVE_B });
+  idC = await crearComercio({ slug: slugC, nombre: 'Comercio C', email: EMAIL, nombreAdmin: 'Ana C', contrasena: CLAVE_B });
 });
 
 after(async () => {
@@ -76,13 +79,25 @@ test('credenciales inválidas no revelan si el usuario o el comercio existen', a
 });
 
 test('tras varios intentos fallidos el correo se bloquea, incluso con la clave correcta, y no afecta a otro comercio', async () => {
+  // Comercio C: nadie más lo usa, así los fallos se cuentan desde cero.
+  assert.ok(idC);
   for (let i = 0; i < MAX_FALLOS_POR_EMAIL; i++) {
-    const r = await ingresar({ slug: slugB, email: EMAIL, contrasena: 'incorrecta-123', ip: `10.1.0.${i}` });
+    const r = await ingresar({ slug: slugC, email: EMAIL, contrasena: 'incorrecta-123', ip: `10.1.0.${i}` });
     assert.deepEqual(r, { ok: false, motivo: 'credenciales' });
   }
-  assert.deepEqual(await ingresar({ slug: slugB, email: EMAIL, contrasena: CLAVE_B, ip: '10.1.0.99' }), { ok: false, motivo: 'bloqueado' });
+  assert.deepEqual(await ingresar({ slug: slugC, email: EMAIL, contrasena: CLAVE_B, ip: '10.1.0.99' }), { ok: false, motivo: 'bloqueado' });
   // El mismo correo en el comercio A sigue entrando.
   assert.ok((await ingresar({ slug: slugA, email: EMAIL, contrasena: CLAVE_A, ip: '10.1.0.99' })).ok);
+});
+
+test('un ingreso correcto borra los fallos anteriores de ese correo', async () => {
+  const ip = '10.3.0.1';
+  for (let i = 0; i < MAX_FALLOS_POR_EMAIL - 1; i++) {
+    await ingresar({ slug: slugB, email: EMAIL, contrasena: 'incorrecta-123', ip: `10.3.1.${i}` });
+  }
+  assert.ok((await ingresar({ slug: slugB, email: EMAIL, contrasena: CLAVE_B, ip })).ok);
+  // Quedó en cero: se pueden volver a cometer errores sin bloqueo inmediato.
+  assert.deepEqual(await ingresar({ slug: slugB, email: EMAIL, contrasena: 'incorrecta-123', ip }), { ok: false, motivo: 'credenciales' });
 });
 
 test('la auditoría registra ingresos y fallos, y cada comercio ve solo la suya', async () => {
