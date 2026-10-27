@@ -63,15 +63,15 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - name: Tipos (TypeScript estricto)
-        run: npm run typecheck
+        run: ../../scripts/ci-anotar.sh Tipos npm run typecheck
       - name: Compilar
-        run: npm run build
+        run: ../../scripts/ci-anotar.sh Compilar npm run build
       - name: Aplicar migraciones con el aplicador de la app (dos veces)
         run: |
-          node scripts/migrar.mjs
-          node scripts/migrar.mjs
+          ../../scripts/ci-anotar.sh Migrar-1 node scripts/migrar.mjs
+          ../../scripts/ci-anotar.sh Migrar-2 node scripts/migrar.mjs
       - name: Tests de ingreso, sesiones, límite de intentos y aislamiento
-        run: npm test
+        run: ../../scripts/ci-anotar.sh Tests-de-ingreso npm test
       - name: Tests de base de datos sobre lo aplicado por la app
         working-directory: .
         env:
