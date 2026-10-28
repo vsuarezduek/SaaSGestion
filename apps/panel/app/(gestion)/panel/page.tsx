@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { conTenant } from '../../lib/db.ts';
-import { botonSecundario, pagina, tarjeta } from '../../lib/estilos.ts';
-import { sesionActual } from '../../lib/sesion.ts';
-import { salirAccion } from '../ingresar/acciones.ts';
+import { conTenant } from '../../../lib/db.ts';
+import { botonSecundario, pagina, tarjeta } from '../../../lib/estilos.ts';
+import { sesionActual } from '../../../lib/sesion.ts';
+import { salirAccion } from '../../ingresar/acciones.ts';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };

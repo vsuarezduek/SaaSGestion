@@ -13,3 +13,11 @@ export async function sesionActual(): Promise<SesionActiva | null> {
 export function ipDe(h: Headers): string {
   return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || 'desconocida';
 }
+
+/** Para páginas y acciones del panel: devuelve la sesión o manda a ingresar. */
+export async function sesionObligatoria(): Promise<SesionActiva> {
+  const { redirect } = await import('next/navigation');
+  const s = await sesionActual();
+  if (!s) redirect('/ingresar');
+  return s as SesionActiva;
+}

@@ -81,16 +81,25 @@ export async function crearComercio(a: AltaComercio): Promise<string> {
   }
 }
 
-async function auditar(
+export async function auditar(
   c: PoolClient,
   usuarioId: string | null,
   accion: string,
   entidad: string,
-  despues?: Record<string, unknown>,
+  despues?: unknown,
+  extra: { entidadId?: string; antes?: unknown } = {},
 ): Promise<void> {
   await c.query(
-    'INSERT INTO auditoria (tenant_id, usuario_id, accion, entidad, despues) VALUES (app.tenant_id(), $1, $2, $3, $4::jsonb)',
-    [usuarioId, accion, entidad, despues ? JSON.stringify(despues) : null],
+    `INSERT INTO auditoria (tenant_id, usuario_id, accion, entidad, entidad_id, antes, despues)
+     VALUES (app.tenant_id(), $1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+    [
+      usuarioId,
+      accion,
+      entidad,
+      extra.entidadId ?? null,
+      extra.antes === undefined ? null : JSON.stringify(extra.antes),
+      despues === undefined ? null : JSON.stringify(despues),
+    ],
   );
 }
 
