@@ -93,4 +93,16 @@ DO $$ BEGIN
   EXCEPTION WHEN unique_violation THEN NULL; END;
 END $$;
 
+-- 9) Intentos de ingreso: aislados por comercio.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO intentos_ingreso (tenant_id, email, ip_hash, exito) VALUES (app.tenant_id(), 'x@x.test', 'h', false);
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM intentos_ingreso) <> 0 THEN RAISE EXCEPTION 'B ve intentos de ingreso de A'; END IF;
+  BEGIN
+    INSERT INTO intentos_ingreso (tenant_id, email, ip_hash, exito) VALUES (gen_random_uuid(), 'y@y.test', 'h', false);
+    RAISE EXCEPTION 'B pudo insertar intentos con otro tenant_id';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

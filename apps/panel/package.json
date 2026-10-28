@@ -9,7 +9,8 @@
     "start": "next start",
     "vercel-build": "node scripts/migrar.mjs && next build",
     "db:migrar": "node scripts/migrar.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "next": "^15.1.0",
