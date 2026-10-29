@@ -63,3 +63,9 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Decisión:** el stock actual de un producto es la suma de `stock_movimientos` (cantidad con hasta 3 decimales; + entra, − sale). No se guarda como número editable. Corregir = movimiento de reversión que referencia al original, una sola vez. Cada producto tiene stock mínimo (alerta) e ideal (para armar compras).
 - **Alertas:** productos con stock negativo o bajo el mínimo se marcan en la lista de productos y en Inicio. El aviso al agregar el producto a una venta se implementa con Ventas.
 - **Pendiente:** los movimientos por ventas, compras y elaboración se agregan como nuevos tipos cuando existan esos módulos (cada uno en su migración).
+
+## D-012 · Cajas: turnos y libro de movimientos de solo agregar
+- **Estado:** Aceptada para la etapa 1.
+- **Decisión:** el saldo de una caja es la suma de sus movimientos. Cada caja tiene turnos: se abre contando el efectivo (la diferencia contra lo esperado queda como movimiento) y se cierra con arqueo (esperado vs. contado, diferencia registrada, cambio que se deja y traspaso del resto a otra caja abierta). Una caja cerrada rechaza cualquier movimiento nuevo (lo garantiza un trigger en la base); las anulaciones sí se permiten y generan el movimiento inverso, una sola vez. Las transferencias y traspasos son dos movimientos unidos por un grupo y se anulan juntos.
+- **Visibilidad:** cada usuario ve solo las cajas habilitadas para él y solo sus propios movimientos; el administrador ve todo. Configurar cajas requiere el permiso de ajustes.
+- **Pendiente:** medios de pago y comisiones (con Ventas), impuesto por transacción sobre pagos a proveedores (el porcentaje ya se configura por caja), reapertura del mismo día por un administrador con motivo, PDF y mail del cierre, resumen del turno por medio de pago.

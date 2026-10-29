@@ -70,7 +70,7 @@ test('transferir mueve plata entre cajas abiertas, "todo" vacía el origen y se 
   await assert.rejects(transferir(A, { origenId: o, destinoId: d, importe: '10', concepto: '' }), ErrorDeUsuario); // destino cerrada
   await abrirCaja(A, d, { contado: '0' });
   await movimientoManual(A, o, ingreso('300'));
-  const t = await transferir(A, { origenId: d === o ? o : o, destinoId: d, importe: '100', concepto: '' });
+  const t = await transferir(A, { origenId: o, destinoId: d, importe: '100', concepto: '' });
   assert.deepEqual([await saldo(A, o), await saldo(A, d)], ['200.00', '100.00']);
   await transferir(A, { origenId: o, destinoId: d, importe: null, concepto: 'Todo' });
   assert.deepEqual([await saldo(A, o), await saldo(A, d)], ['0.00', '300.00']);

@@ -185,8 +185,8 @@ export async function revertirMovimientoCaja(s: SesionActiva, cajaId: string, mo
       for (const m of conjunto) {
         await c.query(
           `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, grupo_id, revierte_id, usuario_id)
-           VALUES (app.tenant_id(), $1, NULL, 'reversion', $2, 'Anulación', $3, $4, $5)`,
-          [m.caja_id, neg(m.importe), orig.grupo_id, m.id, s.usuarioId]);
+           VALUES (app.tenant_id(), $1, NULL, 'reversion', $2, 'Anulación', NULL, $3, $4)`,
+          [m.caja_id, neg(m.importe), m.id, s.usuarioId]);
       }
     } catch (e) {
       if ((e as { code?: string }).code === '23505') throw new ErrorDeUsuario('Ese movimiento ya fue anulado');
