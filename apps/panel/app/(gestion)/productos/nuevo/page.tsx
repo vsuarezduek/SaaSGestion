@@ -13,7 +13,7 @@ export default async function NuevoProducto() {
       <FormularioProducto
         listas={listas}
         rubros={rubros.filter((r) => r.activo)}
-        inicial={{ id: null, codigo: '', nombre: '', rubroId: '', tipo: '', unidad: 'unidad', costo: '', iva: 21, vendible: true, comprable: true, integrable: false, publicadoWeb: false, urlWeb: '', activo: true, precios: {} }}
+        inicial={{ id: null, codigo: '', nombre: '', rubroId: '', tipo: '', unidad: 'unidad', costo: '', iva: 21, vendible: true, comprable: true, integrable: false, publicadoWeb: false, urlWeb: '', activo: true, precios: {}, stockMinimo: '', stockIdeal: '' }}
       />
     </main>
   );

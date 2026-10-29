@@ -99,3 +99,22 @@ test('búsqueda: sin tildes, sin mayúsculas, singular/plural y cualquier orden'
   assert.equal(terminosDeBusqueda('a b c d e f g h i j k').length, 8);
   assert.equal(escaparLike('50%_off\\'), '50\\%\\_off\\\\');
 });
+
+test('cantidades: hasta 3 decimales, coma decimal y formato sin ceros de más', async () => {
+  const { normalizarCantidad, formatearCantidad, estadoStock } = await import('../src/index.ts');
+  assert.equal(normalizarCantidad('12'), '12.000');
+  assert.equal(normalizarCantidad('1,5'), '1.500');
+  assert.equal(normalizarCantidad('1.5'), '1.500');
+  assert.equal(normalizarCantidad('1.234,567'), '1234.567');
+  assert.equal(normalizarCantidad('-3'), '-3.000');
+  assert.equal(normalizarCantidad('1,2345'), null);
+  assert.equal(normalizarCantidad('abc'), null);
+  assert.equal(normalizarCantidad(''), null);
+  assert.equal(formatearCantidad('12.500'), '12,5');
+  assert.equal(formatearCantidad('-3.000'), '-3');
+  assert.equal(formatearCantidad('1234.000'), '1.234');
+  assert.equal(estadoStock('-1.000', '0.000'), 'negativo');
+  assert.equal(estadoStock('2.000', '5.000'), 'bajo_minimo');
+  assert.equal(estadoStock('0.000', '0.000'), 'normal');
+  assert.equal(estadoStock('5.000', '5.000'), 'normal');
+});

@@ -126,6 +126,7 @@ export interface FiltroProductos {
   rubroId?: string;
   tipo?: string;
   estado?: 'activos' | 'archivados' | 'todos';
+  alerta?: 'negativo' | 'bajo_minimo';
   limite?: number;
 }
 
@@ -140,7 +141,12 @@ export interface FilaProducto {
   activo: boolean;
   rubro: string | null;
   precios: Record<string, string>;
+  stock: string;
+  stockMinimo: string;
 }
+
+/** Stock actual = suma del libro de movimientos (nunca un número guardado). */
+const STOCK_SQL = '(SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = p.id)';
 
 export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}): Promise<{ filas: FilaProducto[]; total: number }> {
   exigir(s, 'productos');
@@ -160,6 +166,8 @@ export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}):
     cond.push(`p.rubro_id IN (WITH RECURSIVE d AS (SELECT id FROM rubros WHERE id = ${p(f.rubroId)}::uuid UNION ALL SELECT x.id FROM rubros x JOIN d ON x.padre_id = d.id) SELECT id FROM d)`);
   }
   if (f.tipo) cond.push(`p.tipo = ${p(f.tipo)}`);
+  if (f.alerta === 'negativo') cond.push(`${STOCK_SQL} < 0`);
+  if (f.alerta === 'bajo_minimo') cond.push(`(p.stock_minimo > 0 AND ${STOCK_SQL} >= 0 AND ${STOCK_SQL} < p.stock_minimo)`);
   const donde = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
   const limite = Math.min(Math.max(f.limite ?? 50, 1), 500);
 
@@ -167,15 +175,15 @@ export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}):
     const total = await c.query<{ n: string }>(`SELECT count(*)::text AS n FROM productos p ${donde}`, params);
     const r = await c.query<{
       id: string; codigo: string | null; nombre: string; tipo: string | null; unidad: string; costo: string; iva: string;
-      activo: boolean; rubro: string | null; precios: Record<string, string>;
+      activo: boolean; rubro: string | null; precios: Record<string, string>; stock: string; stock_minimo: string;
     }>(
-      `SELECT p.id, p.codigo, p.nombre, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.activo, r.nombre AS rubro,
+      `SELECT p.id, p.codigo, p.nombre, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.activo, r.nombre AS rubro, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo,
               COALESCE((SELECT jsonb_object_agg(pp.lista_id, pp.precio::text) FROM producto_precios pp WHERE pp.producto_id = p.id), '{}'::jsonb) AS precios
          FROM productos p LEFT JOIN rubros r ON r.tenant_id = p.tenant_id AND r.id = p.rubro_id
          ${donde} ORDER BY lower(p.nombre), p.id LIMIT ${limite}`,
       params,
     );
-    return { filas: r.rows, total: Number(total.rows[0]!.n) };
+    return { filas: r.rows.map(({ stock_minimo, ...f }) => ({ ...f, stockMinimo: stock_minimo })), total: Number(total.rows[0]!.n) };
   });
 }
 
@@ -195,15 +203,18 @@ export interface DetalleProducto {
   urlWeb: string | null;
   activo: boolean;
   precios: Record<string, string>;
+  stock: string;
+  stockMinimo: string;
+  stockIdeal: string;
 }
 
 async function detalleEn(c: PoolClient, id: string): Promise<DetalleProducto | null> {
   const r = await c.query<{
     id: string; codigo: string | null; nombre: string; rubro_id: string | null; tipo: string | null; unidad: string; costo: string; iva: string;
-    vendible: boolean; comprable: boolean; integrable: boolean; publicado_web: boolean; url_web: string | null; activo: boolean; precios: Record<string, string>;
+    vendible: boolean; comprable: boolean; integrable: boolean; publicado_web: boolean; url_web: string | null; activo: boolean; precios: Record<string, string>; stock: string; stock_minimo: string; stock_ideal: string;
   }>(
     `SELECT p.id, p.codigo, p.nombre, p.rubro_id, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.vendible, p.comprable,
-            p.integrable, p.publicado_web, p.url_web, p.activo,
+            p.integrable, p.publicado_web, p.url_web, p.activo, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo, p.stock_ideal::text AS stock_ideal,
             COALESCE((SELECT jsonb_object_agg(pp.lista_id, pp.precio::text) FROM producto_precios pp WHERE pp.producto_id = p.id), '{}'::jsonb) AS precios
        FROM productos p WHERE p.id = $1`,
     [id],
@@ -213,7 +224,7 @@ async function detalleEn(c: PoolClient, id: string): Promise<DetalleProducto | n
   return {
     id: f.id, codigo: f.codigo, nombre: f.nombre, rubroId: f.rubro_id, tipo: f.tipo, unidad: f.unidad, costo: f.costo, iva: Number(f.iva),
     vendible: f.vendible, comprable: f.comprable, integrable: f.integrable, publicadoWeb: f.publicado_web, urlWeb: f.url_web, activo: f.activo,
-    precios: f.precios,
+    precios: f.precios, stock: f.stock, stockMinimo: f.stock_minimo, stockIdeal: f.stock_ideal,
   };
 }
 
@@ -253,7 +264,7 @@ export async function guardarProducto(s: SesionActiva, id: string | null, entrad
         const ru = await c.query('SELECT 1 FROM rubros WHERE id = $1 AND activo', [d.rubroId]);
         if (ru.rowCount === 0) throw new ErrorDeUsuario('El rubro no existe o está archivado');
       }
-      const valores = [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb];
+      const valores = [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb, d.stockMinimo, d.stockIdeal];
       let pid: string;
       let antes: DetalleProducto | null = null;
       if (id) {
@@ -261,14 +272,14 @@ export async function guardarProducto(s: SesionActiva, id: string | null, entrad
         if (!antes) throw new ErrorDeUsuario('El producto no existe');
         await c.query(
           `UPDATE productos SET codigo=$2, nombre=$3, rubro_id=$4, tipo=$5, unidad=$6, costo=$7, iva=$8, vendible=$9, comprable=$10,
-                  integrable=$11, publicado_web=$12, url_web=$13 WHERE id = $1`,
+                  integrable=$11, publicado_web=$12, url_web=$13, stock_minimo=$14, stock_ideal=$15 WHERE id = $1`,
           [id, ...valores],
         );
         pid = id;
       } else {
         const r = await c.query<{ id: string }>(
-          `INSERT INTO productos (tenant_id, codigo, nombre, rubro_id, tipo, unidad, costo, iva, vendible, comprable, integrable, publicado_web, url_web)
-           VALUES (app.tenant_id(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+          `INSERT INTO productos (tenant_id, codigo, nombre, rubro_id, tipo, unidad, costo, iva, vendible, comprable, integrable, publicado_web, url_web, stock_minimo, stock_ideal)
+           VALUES (app.tenant_id(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
           valores,
         );
         pid = r.rows[0]!.id;

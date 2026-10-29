@@ -57,3 +57,9 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Dinero:** `numeric(14,2)` en la base; los cálculos de utilidad y precio se hacen en centavos enteros con redondeo half-up (`packages/dominio`).
 - **Búsqueda:** sin tildes, sin mayúsculas, sin importar el orden de las palabras y con singular/plural (`unaccent` + términos).
 - **Stock:** queda fuera de esta migración a propósito. Será un libro append-only propio (movimientos con referencia al original) y se define con el usuario antes de implementarlo.
+
+## D-011 · Stock como libro de solo agregar, con negativo permitido
+- **Estado:** Aceptada para la etapa 1 (regla confirmada por el usuario: el stock puede quedar negativo, pero se alerta).
+- **Decisión:** el stock actual de un producto es la suma de `stock_movimientos` (cantidad con hasta 3 decimales; + entra, − sale). No se guarda como número editable. Corregir = movimiento de reversión que referencia al original, una sola vez. Cada producto tiene stock mínimo (alerta) e ideal (para armar compras).
+- **Alertas:** productos con stock negativo o bajo el mínimo se marcan en la lista de productos y en Inicio. El aviso al agregar el producto a una venta se implementa con Ventas.
+- **Pendiente:** los movimientos por ventas, compras y elaboración se agregan como nuevos tipos cuando existan esos módulos (cada uno en su migración).
