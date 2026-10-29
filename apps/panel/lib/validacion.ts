@@ -191,3 +191,44 @@ export const esquemaCierre = z.object({
   cambioDejado: importeNoNegativo('Cambio que se deja'),
   destinoId: z.string().uuid().nullable(),
 });
+
+// ───────── Ventas ─────────
+export const COMPROBANTES = ['remito', 'factura_b', 'factura_a', 'sin_comprobante'] as const; // la nota de crédito va con las devoluciones
+const pct = (campo: string) => z.number().min(0, `${campo} no puede ser negativo`).max(100, `${campo} no puede pasar de 100`);
+const alicuota = z.number().refine((v) => (ALICUOTAS_IVA as readonly number[]).includes(v), 'El IVA no es válido');
+
+export const esquemaMedioPago = z.object({
+  nombre: z.string().trim().min(1, 'Falta el nombre del medio de pago').max(60),
+  comisionPct: pct('La comisión'),
+  ivaComision: alicuota,
+  cajaIds: z.array(z.string().uuid()).max(50),
+});
+
+export const esquemaVenta = z.object({
+  clave: z.string().uuid(),
+  clienteId: z.string().uuid(),
+  comprobante: z.enum(COMPROBANTES),
+  nroComprobante: textoOpcional(30),
+  listaId: z.string().uuid().nullable(),
+  fecha: fechaArgentina,
+  descuentoTotalPct: pct('El descuento'),
+  nota: textoOpcional(500),
+  renglones: z
+    .array(
+      z.object({
+        productoId: z.string().uuid().nullable(),                 // null = ítem libre
+        descripcion: z.string().trim().max(200),
+        cantidad: cantidad('Cantidad', { cero: false }),
+        precio: importeNoNegativo('Precio'),
+        descuentoPct: pct('El descuento del renglón'),
+        iva: alicuota,
+      }),
+    )
+    .min(1, 'Agregá al menos un producto')
+    .max(200, 'Demasiados renglones'),
+  cobro: z.discriminatedUnion('tipo', [
+    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid(), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('cuenta_corriente') }),
+  ]),
+});
+export type DatosVenta = z.infer<typeof esquemaVenta>;

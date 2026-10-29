@@ -289,4 +289,45 @@ DO $$ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 END $$;
 
+-- 14) Ventas: aisladas, inmutables una vez cerradas, y vinculadas a los libros.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO clientes (tenant_id, nombre) VALUES (app.tenant_id(), 'Cliente venta');
+INSERT INTO ventas (tenant_id, numero, cliente_id, comprobante, subtotal, total, en_cuenta_corriente)
+  SELECT app.tenant_id(), 1, id, 'remito', 1000, 1000, true FROM clientes WHERE nombre = 'Cliente venta';
+SELECT set_config('test.venta_a', (SELECT id::text FROM ventas), false);
+INSERT INTO venta_renglones (tenant_id, venta_id, orden, descripcion, cantidad, precio, iva, subtotal, total)
+  VALUES (app.tenant_id(), current_setting('test.venta_a')::uuid, 1, 'Ítem libre', 2.500, 400, 21, 1000, 1000);
+INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, venta_id)
+  SELECT app.tenant_id(), cliente_id, 'venta', 1000, id FROM ventas;
+DO $$ BEGIN
+  -- Número correlativo único por comercio.
+  BEGIN
+    INSERT INTO ventas (tenant_id, numero, cliente_id, comprobante, subtotal, total, en_cuenta_corriente)
+      SELECT app.tenant_id(), 1, cliente_id, 'remito', 1, 1, true FROM ventas;
+    RAISE EXCEPTION 'aceptó un número repetido';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  -- Cobra en caja o en cuenta corriente, no ninguna de las dos.
+  BEGIN
+    INSERT INTO ventas (tenant_id, numero, cliente_id, comprobante, subtotal, total, en_cuenta_corriente)
+      SELECT app.tenant_id(), 2, cliente_id, 'remito', 1, 1, false FROM ventas;
+    RAISE EXCEPTION 'aceptó una venta sin forma de cobro';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  -- Una venta cerrada no cambia sus importes ni se borra; los renglones tampoco.
+  BEGIN UPDATE ventas SET total = 1; RAISE EXCEPTION 'permitió cambiar una venta cerrada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM ventas; RAISE EXCEPTION 'permitió borrar una venta';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE venta_renglones SET cantidad = 9; RAISE EXCEPTION 'permitió cambiar un renglón';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  -- Sí se puede anular.
+  UPDATE ventas SET estado = 'anulada', anulada_en = now(), motivo_anulacion = 'prueba';
+  BEGIN UPDATE ventas SET nota = 'x'; RAISE EXCEPTION 'permitió tocar una venta anulada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM ventas) + (SELECT count(*) FROM venta_renglones) + (SELECT count(*) FROM medios_pago) <> 0 THEN
+    RAISE EXCEPTION 'B ve ventas de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

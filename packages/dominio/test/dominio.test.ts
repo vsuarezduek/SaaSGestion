@@ -118,3 +118,32 @@ test('cantidades: hasta 3 decimales, coma decimal y formato sin ceros de más', 
   assert.equal(estadoStock('0.000', '0.000'), 'normal');
   assert.equal(estadoStock('5.000', '5.000'), 'normal');
 });
+
+test('venta: descuentos por renglón y total, IVA incluido y redondeo al centavo', async () => {
+  const { calcularVenta, comisionDeCobro } = await import('../src/index.ts');
+  // 2 × $1.000 con 10 % → 1800; segundo renglón 1 × $500 sin descuento; descuento total 5 %
+  const v = calcularVenta([
+    { cantidad: '2', precio: 100000, descuentoPct: 10, iva: 21 },
+    { cantidad: '1', precio: 50000, descuentoPct: 0, iva: 10.5 },
+  ], 5);
+  assert.deepEqual(v.renglones.map((r) => r.bruto), [200000, 50000]);
+  assert.deepEqual(v.renglones.map((r) => r.subtotal), [180000, 50000]);
+  assert.deepEqual(v.renglones.map((r) => r.total), [171000, 47500]);
+  assert.equal(v.subtotal, 230000);
+  assert.equal(v.total, 218500);
+  assert.equal(v.descuentoTotal, 11500);
+  assert.equal(v.renglones[0]!.iva, 29678); // 1710 × 21 ÷ 121 = 296,78
+  assert.equal(v.ivaIncluido, v.renglones[0]!.iva + v.renglones[1]!.iva);
+  // cantidades decimales: 1,5 kg × $333,33 = 499,995 → 500,00 (mitad hacia arriba)
+  assert.equal(calcularVenta([{ cantidad: '1.500', precio: 33333, descuentoPct: 0, iva: 21 }], 0).total, 50000);
+  // 0,333 × $10 = 3,33
+  assert.equal(calcularVenta([{ cantidad: '0.333', precio: 1000, descuentoPct: 0, iva: 0 }], 0).total, 333);
+  assert.equal(calcularVenta([], 0).total, 0);
+  assert.throws(() => calcularVenta([{ cantidad: '1', precio: 100, descuentoPct: 101, iva: 21 }], 0));
+  assert.throws(() => calcularVenta([{ cantidad: '1', precio: 100, descuentoPct: 0, iva: 21 }], -1));
+  assert.throws(() => calcularVenta([{ cantidad: '1,5', precio: 100, descuentoPct: 0, iva: 21 }], 0));
+  // comisión: 3 % + 21 % de IVA sobre $1.710 = 62,07
+  assert.equal(comisionDeCobro(171000, 3, 21), 6207);
+  assert.equal(comisionDeCobro(171000, 0, 21), 0);
+  assert.equal(comisionDeCobro(100000, 1.5, 0), 1500);
+});
