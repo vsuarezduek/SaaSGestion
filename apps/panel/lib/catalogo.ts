@@ -146,7 +146,7 @@ export interface FilaProducto {
 }
 
 /** Stock actual = suma del libro de movimientos (nunca un número guardado). */
-const STOCK_SQL = '(SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = p.id)';
+const STOCK_SQL = '(SELECT COALESCE(sum(sm.cantidad), 0)::numeric(14,3) FROM stock_movimientos sm WHERE sm.producto_id = p.id)';
 
 export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}): Promise<{ filas: FilaProducto[]; total: number }> {
   exigir(s, 'productos');

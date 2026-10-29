@@ -81,7 +81,7 @@ export async function alertasDeStock(s: SesionActiva, max = 20): Promise<Resumen
     const r = await c.query<{ id: string; nombre: string; stock: string; minimo: string }>(
       `SELECT * FROM (
          SELECT p.id, p.nombre, p.stock_minimo::text AS minimo,
-                (SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = p.id)::text AS stock
+                (SELECT COALESCE(sum(sm.cantidad), 0)::numeric(14,3) FROM stock_movimientos sm WHERE sm.producto_id = p.id)::text AS stock
            FROM productos p WHERE p.activo) t
         WHERE t.stock::numeric < 0 OR (t.minimo::numeric > 0 AND t.stock::numeric < t.minimo::numeric)
         ORDER BY t.stock::numeric, lower(t.nombre) LIMIT ${Math.min(Math.max(max, 1), 200)}`,
