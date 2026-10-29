@@ -212,6 +212,7 @@ export const esquemaVenta = z.object({
   listaId: z.string().uuid().nullable(),
   fecha: fechaArgentina,
   descuentoTotalPct: pct('El descuento'),
+  totalFinal: importeNoNegativo('El total final').nullable().default(null), // si viene, manda sobre el porcentaje: la venta cierra en ese total
   nota: textoOpcional(500),
   renglones: z
     .array(

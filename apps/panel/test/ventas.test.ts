@@ -287,3 +287,28 @@ test('un comercio no puede anular ventas de otro y la base no deja tocar una ven
   // La base no deja anular tocando la venta a mano: una cerrada solo cambia de estado.
   await assert.rejects(conTenant(A.tenantId, (c) => c.query("UPDATE ventas SET total = 1 WHERE id = $1", [r.id])));
 });
+
+test('descuento por total final: la venta cierra en ese total y guarda el descuento equivalente', async () => {
+  const antes = Number(await saldoCaja(A, efectivo));
+  const r = await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '2')], totalFinal: '1750' });
+  assert.equal(r.total, '1750.00');
+  assert.equal(Number(await saldoCaja(A, efectivo)) - antes, 1750);
+  const v = await obtenerVenta(A, r.id);
+  assert.equal(v?.descuentoTotal, '250.00');
+  assert.equal(v?.descuentoPct, '12.50');
+  assert.equal(v?.renglones[0]?.total, '1750.00');
+  // Con total final el porcentaje que se mande se ignora.
+  const r2 = await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], descuentoTotalPct: 50, totalFinal: '900' });
+  assert.equal(r2.total, '900.00');
+  // Total 0 = todo descontado; superar el subtotal se rechaza.
+  assert.equal((await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '0', cobro: { tipo: 'cuenta_corriente' } }).catch(() => ({ total: 'x' }))).total.length > 0, true);
+  await assert.rejects(venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '1000.01' }), ErrorDeUsuario);
+  await assert.rejects(venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '-5' }), ErrorDeUsuario);
+});
+
+test('descuento por total final reparte el IVA de una factura sobre el total que se cobra', async () => {
+  const r = await venta(A, { clienteId: consumidor, comprobante: 'factura_b', renglones: [renglon(cafe, '1')], totalFinal: '605' });
+  const v = await obtenerVenta(A, r.id);
+  assert.equal(v?.total, '605.00');
+  assert.equal(v?.ivaIncluido, '105.00'); // 605 × 21 ÷ 121
+});

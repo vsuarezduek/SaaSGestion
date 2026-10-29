@@ -4,6 +4,8 @@
 //   subtotal_i  = bruto_i − bruto_i × descuento_i%            (descuento por renglón)
 //   total_i     = subtotal_i − subtotal_i × descuentoTotal%   (el descuento total se reparte en cada renglón)
 //   total       = Σ total_i          descuento total = Σ subtotal_i − total
+// Descuento total por monto ("quiero que la venta cierre en $X"): el descuento D = Σ subtotal_i − X se reparte entre los renglones
+// en proporción a su subtotal; los centavos sobrantes van a los renglones con mayor resto (empate: el primero), así Σ total_i = X exacto.
 //   iva_i       = total_i × iva ÷ (100 + iva)                 (parte de IVA que contiene el precio final)
 import type { Centavos } from './dinero.ts';
 import { ivaIncluido } from './precios.ts';
@@ -30,19 +32,40 @@ const validarPct = (pct: number): void => {
   if (!(pct >= 0 && pct <= 100)) throw new Error(`Porcentaje inválido: ${pct}`);
 };
 
-export function calcularVenta(renglones: RenglonEntrada[], descuentoTotalPct: number): VentaCalculada {
-  validarPct(descuentoTotalPct);
-  const calculados = renglones.map((r) => {
+/** Descuento total: un porcentaje (0–100) o el total final al que tiene que llegar la venta (en centavos, entre 0 y el subtotal). */
+export type DescuentoTotal = number | { totalFinal: Centavos };
+
+export function calcularVenta(renglones: RenglonEntrada[], descuentoTotal: DescuentoTotal): VentaCalculada {
+  const porMonto = typeof descuentoTotal === 'object';
+  if (!porMonto) validarPct(descuentoTotal);
+  const base = renglones.map((r) => {
     validarPct(r.descuentoPct);
     if (!Number.isInteger(r.precio) || r.precio < 0) throw new Error('Precio inválido');
     const bruto = dividir(BigInt(r.precio) * milesimas(r.cantidad), 1000n);
-    const subtotal = bruto - dividir(bruto * bp(r.descuentoPct), 10000n);
-    const total = subtotal - dividir(subtotal * bp(descuentoTotalPct), 10000n);
-    return { bruto: Number(bruto), subtotal: Number(subtotal), total: Number(total), iva: ivaIncluido(Number(total), r.iva) };
+    return { bruto, subtotal: bruto - dividir(bruto * bp(r.descuentoPct), 10000n) };
   });
-  const subtotal = calculados.reduce((a, r) => a + r.subtotal, 0);
+  const subtotal = base.reduce((a, r) => a + r.subtotal, 0n);
+  let totales: bigint[];
+  if (!porMonto) {
+    totales = base.map((r) => r.subtotal - dividir(r.subtotal * bp(descuentoTotal), 10000n));
+  } else {
+    const T = descuentoTotal.totalFinal;
+    if (!Number.isInteger(T) || T < 0) throw new Error('Total final inválido');
+    if (BigInt(T) > subtotal) throw new Error('El total final no puede superar al subtotal');
+    const D = subtotal - BigInt(T);
+    if (subtotal === 0n) {
+      totales = base.map((r) => r.subtotal);
+    } else {
+      const partes = base.map((r) => ({ q: (D * r.subtotal) / subtotal, resto: (D * r.subtotal) % subtotal }));
+      let faltan = D - partes.reduce((a, p) => a + p.q, 0n);
+      const orden = partes.map((p, i) => ({ i, resto: p.resto })).sort((a, b) => (a.resto === b.resto ? a.i - b.i : a.resto > b.resto ? -1 : 1));
+      for (const o of orden) { if (faltan <= 0n) break; partes[o.i]!.q += 1n; faltan -= 1n; }
+      totales = base.map((r, i) => r.subtotal - partes[i]!.q);
+    }
+  }
+  const calculados = base.map((r, i) => ({ bruto: Number(r.bruto), subtotal: Number(r.subtotal), total: Number(totales[i]!), iva: ivaIncluido(Number(totales[i]!), renglones[i]!.iva) }));
   const total = calculados.reduce((a, r) => a + r.total, 0);
-  return { renglones: calculados, subtotal, descuentoTotal: subtotal - total, total, ivaIncluido: calculados.reduce((a, r) => a + r.iva, 0) };
+  return { renglones: calculados, subtotal: Number(subtotal), descuentoTotal: Number(subtotal) - total, total, ivaIncluido: calculados.reduce((a, r) => a + r.iva, 0) };
 }
 
 /** Comisión de un medio de pago: total × porcentaje × (1 + IVA sobre la comisión). Ej.: 3 % + 21 % de IVA. */
