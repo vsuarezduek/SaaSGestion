@@ -4,7 +4,7 @@ import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 import {
-  buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago,
+  anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago,
   type ClienteParaVenta, type ProductoParaVenta,
 } from '../../../lib/ventas.ts';
 
@@ -41,5 +41,17 @@ export async function guardarMedioAccion(id: string | null, datos: unknown): Pro
     throw e;
   }
   revalidatePath('/ventas', 'layout');
+  return {};
+}
+
+export async function anularVentaAccion(id: string, motivo: string): Promise<{ error?: string }> {
+  const s = await sesionObligatoria();
+  try {
+    await anularVenta(s, id, motivo);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  for (const r of ['/ventas', '/cajas', '/productos', '/clientes']) revalidatePath(r, 'layout');
   return {};
 }

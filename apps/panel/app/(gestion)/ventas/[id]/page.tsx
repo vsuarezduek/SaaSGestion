@@ -5,6 +5,7 @@ import { aviso, tarjeta } from '../../../../lib/estilos.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import { ETIQUETAS_COMPROBANTE as ETIQUETAS } from '../../../../lib/etiquetas.ts';
+import AnularVenta from './AnularVenta.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,11 @@ export default async function Venta({ params, searchParams }: { params: Promise<
     <main style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontFamily: 'Georgia, serif' }}>Venta N° {v.numero}{v.estado === 'anulada' ? ' (anulada)' : ''}</h1>
       {avisos && <div style={{ ...aviso, background: '#fff4cc', color: '#8a6d00' }}>⚠ Stock negativo: {avisos}</div>}
+      {v.estado === 'anulada' && (
+        <div style={{ ...aviso, background: '#fbeae0', color: '#b4571a' }}>
+          Venta anulada{v.anuladaEn ? ` el ${v.anuladaEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}` : ''}{v.motivoAnulacion ? ` · Motivo: ${v.motivoAnulacion}` : ''}. Sus movimientos de caja, stock y cuenta corriente fueron revertidos.
+        </div>
+      )}
       <div style={tarjeta}>
         <div><b>Cliente:</b> <Link href={`/clientes/${v.clienteId}`} style={{ color: '#1c9764' }}>{v.cliente}</Link></div>
         <div><b>Fecha:</b> {v.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</div>
@@ -48,6 +54,7 @@ export default async function Venta({ params, searchParams }: { params: Promise<
         </div>
         {v.nota && <p style={{ fontSize: 14 }}><b>Nota:</b> {v.nota}</p>}
       </div>
+      {v.estado === 'cerrada' && <AnularVenta id={v.id} numero={v.numero} />}
     </main>
   );
 }

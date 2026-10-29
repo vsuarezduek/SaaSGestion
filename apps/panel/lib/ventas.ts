@@ -258,7 +258,7 @@ export async function listarVentas(s: SesionActiva, f: { q?: string; limite?: nu
 
 export interface DetalleVenta extends FilaVenta {
   nroComprobante: string | null; subtotal: string; descuentoTotal: string; descuentoPct: string; ivaIncluido: string; comision: string; nota: string | null; usuario: string | null;
-  clienteId: string; lista: string | null;
+  clienteId: string; lista: string | null; motivoAnulacion: string | null; anuladaEn: Date | null;
   renglones: { descripcion: string; cantidad: string; precio: string; descuentoPct: string; iva: string; total: string; ivaIncluido: string }[];
 }
 
@@ -278,8 +278,42 @@ export async function obtenerVenta(s: SesionActiva, id: string): Promise<Detalle
       `SELECT descripcion, cantidad::text, precio::text, descuento_pct::text, iva::text, total::text, iva_incluido::text FROM venta_renglones WHERE venta_id = $1 ORDER BY orden`, [id]);
     return {
       id: f.id, numero: f.numero, fecha: f.fecha, cliente: f.cliente, clienteId: f.cliente_id, comprobante: f.comprobante, total: f.total_t, estado: f.estado, cobro: f.cobro,
-      nroComprobante: f.nro_comprobante, subtotal: f.subtotal_t, descuentoTotal: f.dtotal_t, descuentoPct: f.dpct_t, ivaIncluido: f.iva_t, comision: f.com_t, nota: f.nota, usuario: f.usuario, lista: f.lista,
+      nroComprobante: f.nro_comprobante, subtotal: f.subtotal_t, descuentoTotal: f.dtotal_t, descuentoPct: f.dpct_t, ivaIncluido: f.iva_t, comision: f.com_t, nota: f.nota, usuario: f.usuario, lista: f.lista, motivoAnulacion: f.motivo_anulacion, anuladaEn: f.anulada_en,
       renglones: rg.rows.map((x) => ({ descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio, descuentoPct: x.descuento_pct, iva: x.iva, total: x.total, ivaIncluido: x.iva_incluido })),
     };
+  });
+}
+
+// ───────── Anular una venta ─────────
+/** Anula una venta cerrada. No borra nada: genera el movimiento inverso de cada movimiento de caja, de stock y de cuenta corriente
+ *  que dejó la venta (cada uno referencia al original) y marca la venta como anulada con quién, cuándo y por qué. Todo o nada. */
+export async function anularVenta(s: SesionActiva, id: string, motivo: string): Promise<void> {
+  exigir(s, 'ventas');
+  const m = String(motivo ?? '').trim();
+  if (m.length < 3) throw new ErrorDeUsuario('Indicá el motivo de la anulación');
+  if (m.length > 200) throw new ErrorDeUsuario('El motivo es demasiado largo (máximo 200 caracteres)');
+  if (!UUID.test(id)) throw new ErrorDeUsuario('La venta no existe');
+  await conTenant(s.tenantId, async (c) => {
+    const v = await c.query<{ numero: number; estado: string }>('SELECT numero, estado FROM ventas WHERE id = $1 FOR UPDATE', [id]);
+    const venta = v.rows[0];
+    if (!venta) throw new ErrorDeUsuario('La venta no existe');
+    if (venta.estado === 'anulada') throw new ErrorDeUsuario('La venta ya está anulada');
+    if (venta.estado !== 'cerrada') throw new ErrorDeUsuario('Solo se anulan ventas cerradas');
+    const concepto = `Anulación venta N° ${venta.numero}`;
+    // Una reversión de caja se permite aunque la caja ya esté cerrada (queda en el libro, sin turno).
+    await c.query(
+      `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
+       SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, venta_id FROM caja_movimientos
+        WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta')`, [id, concepto, s.usuarioId]);
+    await c.query(
+      `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, revierte_id, usuario_id, venta_id)
+       SELECT app.tenant_id(), producto_id, 'reversion', -cantidad, $2, id, $3, venta_id FROM stock_movimientos
+        WHERE venta_id = $1 AND tipo = 'venta'`, [id, concepto, s.usuarioId]);
+    await c.query(
+      `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
+       SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, venta_id FROM cuenta_corriente_movimientos
+        WHERE venta_id = $1 AND tipo = 'venta'`, [id, concepto, s.usuarioId]);
+    await c.query(`UPDATE ventas SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
+    await auditar(c, s.usuarioId, 'anular', 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
   });
 }
