@@ -154,7 +154,16 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
       if (!descripcion) throw new ErrorDeUsuario('El ítem libre necesita una descripción');
       return { ...r, descripcion, iva: p ? p.iva : r.iva };
     });
-    const calc = calcularVenta(lineas.map((r) => ({ cantidad: r.cantidad, precio: aCentavos(r.precio), descuentoPct: r.descuentoPct, iva: r.iva })), d.descuentoTotalPct);
+    const entrada = lineas.map((r) => ({ cantidad: r.cantidad, precio: aCentavos(r.precio), descuentoPct: r.descuentoPct, iva: r.iva }));
+    // Un solo descuento: por porcentaje o por total final. Si es por total, el porcentaje que se guarda es el equivalente (informativo).
+    let calc;
+    try {
+      calc = calcularVenta(entrada, d.totalFinal !== null ? { totalFinal: aCentavos(d.totalFinal) } : d.descuentoTotalPct);
+    } catch (e) {
+      if (d.totalFinal !== null) throw new ErrorDeUsuario('El total final no puede superar al subtotal');
+      throw e;
+    }
+    const descuentoPctGuardado = d.totalFinal !== null ? (calc.subtotal > 0 ? Math.round((calc.descuentoTotal / calc.subtotal) * 10000) / 100 : 0) : d.descuentoTotalPct;
 
     // Forma de cobro
     let cajaDestino: Awaited<ReturnType<typeof cajaEn>> | null = null;
@@ -179,7 +188,7 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
       `INSERT INTO ventas (tenant_id, numero, estado, clave, cliente_id, comprobante, nro_comprobante, lista_id, fecha, descuento_pct, subtotal, descuento_total,
                            total, iva_incluido, en_cuenta_corriente, medio_pago_id, caja_id, comision, nota, usuario_id)
        VALUES (app.tenant_id(), $1, 'cerrada', $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()), $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
-      [numero, d.clave, d.clienteId, d.comprobante, d.nroComprobante, d.listaId, d.fecha, d.descuentoTotalPct, deCentavos(calc.subtotal), deCentavos(calc.descuentoTotal),
+      [numero, d.clave, d.clienteId, d.comprobante, d.nroComprobante, d.listaId, d.fecha, descuentoPctGuardado, deCentavos(calc.subtotal), deCentavos(calc.descuentoTotal),
        deCentavos(calc.total), deCentavos(calc.ivaIncluido), d.cobro.tipo === 'cuenta_corriente', medio?.id ?? null, cajaDestino?.id ?? null, deCentavos(comision), d.nota, s.usuarioId],
     );
     const ventaId = vr.rows[0]!.id;
@@ -201,7 +210,7 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
       }
     }
 
-    if (cajaDestino) {
+    if (cajaDestino && calc.total > 0) { // una venta de $0 (todo descontado) no mueve la caja
       const fecha = d.fecha;
       await c.query(
         `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, usuario_id, venta_id, fecha)

@@ -147,3 +147,30 @@ test('venta: descuentos por renglón y total, IVA incluido y redondeo al centavo
   assert.equal(comisionDeCobro(171000, 0, 21), 0);
   assert.equal(comisionDeCobro(100000, 1.5, 0), 1500);
 });
+
+test('venta: descuento total por monto reparte el descuento y cierra exacto en el total pedido', async () => {
+  const { calcularVenta } = await import('../src/index.ts');
+  const r = [
+    { cantidad: '1', precio: 33333, descuentoPct: 0, iva: 21 },
+    { cantidad: '1', precio: 33333, descuentoPct: 0, iva: 21 },
+    { cantidad: '1', precio: 33334, descuentoPct: 0, iva: 21 },
+  ]; // subtotal $1.000,00
+  const v = calcularVenta(r, { totalFinal: 90000 });
+  assert.equal(v.subtotal, 100000);
+  assert.equal(v.total, 90000);                       // exacto, sin centavos perdidos
+  assert.equal(v.descuentoTotal, 10000);
+  assert.equal(v.renglones.reduce((a, x) => a + x.total, 0), 90000);
+  // Un monto que no se reparte parejo (tres renglones iguales, $1 de descuento) sigue sumando exacto.
+  const w = calcularVenta([{ cantidad: '1', precio: 1000, descuentoPct: 0, iva: 0 }, { cantidad: '1', precio: 1000, descuentoPct: 0, iva: 0 }, { cantidad: '1', precio: 1000, descuentoPct: 0, iva: 0 }], { totalFinal: 2999 });
+  assert.equal(w.total, 2999);
+  assert.deepEqual(w.renglones.map((x) => x.total), [999, 1000, 1000]); // el centavo va al primero (empate)
+  // El porcentaje redondea renglón por renglón (puede diferir un centavo del monto pedido); por monto cierra exacto.
+  assert.ok(Math.abs(calcularVenta(r, 10).total - 90000) <= 3);
+  // Límites: total 0 (todo descontado), igual al subtotal (sin descuento), y errores.
+  assert.equal(calcularVenta(r, { totalFinal: 0 }).total, 0);
+  assert.equal(calcularVenta(r, { totalFinal: 100000 }).descuentoTotal, 0);
+  assert.throws(() => calcularVenta(r, { totalFinal: 100001 }));
+  assert.throws(() => calcularVenta(r, { totalFinal: -1 }));
+  assert.throws(() => calcularVenta(r, { totalFinal: 10.5 }));
+  assert.equal(calcularVenta([], { totalFinal: 0 }).total, 0);
+});

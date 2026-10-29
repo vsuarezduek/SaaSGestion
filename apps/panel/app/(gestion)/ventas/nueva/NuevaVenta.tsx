@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, useTransition } from 'react';
-import { aCentavos, calcularVenta, comisionDeCobro, formatearCantidad, formatearPesos, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
+import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
+import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, formatearCantidad, formatearPesos, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
 import { buscarClientesAccion, buscarProductosAccion, cerrarVentaAccion } from '../acciones.ts';
 
@@ -29,7 +29,10 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
   const [nroComprobante, setNroComprobante] = useState('');
   const [listaId, setListaId] = useState(clienteInicial.listaId ?? listas[0]?.id ?? '');
   const [fecha, setFecha] = useState('');
+  // Un solo descuento: por porcentaje o por el total final al que se quiere llegar.
+  const [modoDesc, setModoDesc] = useState<'pct' | 'total'>('pct');
   const [descTotal, setDescTotal] = useState(String(clienteInicial.descuento || 0));
+  const [totalFinal, setTotalFinal] = useState('');
   const [renglones, setRenglones] = useState<Renglon[]>([]);
   const [busquedaProd, setBusquedaProd] = useState('');
   const [resultadosProd, setResultadosProd] = useState<Producto[]>([]);
@@ -40,6 +43,9 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const refs = useRef<Record<number, HTMLInputElement | null>>({});
+  const buscarRef = useRef<HTMLInputElement | null>(null);
+  // Enter en cantidad, precio o descuento vuelve al buscador para sumar otro producto.
+  const enterABuscar = (e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); buscarRef.current?.focus(); } };
 
   const medio = medios.find((m) => m.id === medioId) ?? null;
   const cajasDelMedio = medio ? cajas.filter((c) => medio.cajaIds.includes(c.id)) : [];
@@ -52,13 +58,21 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
         if (cant === null || precio === null) throw new Error('dato inválido');
         return { cantidad: cant, precio: aCentavos(precio), descuentoPct: pctNum(r.descuentoPct), iva: r.iva };
       });
-      const v = calcularVenta(entrada, pctNum(descTotal));
+      const pideTotal = modoDesc === 'total' && totalFinal.trim() !== '';
+      const tf = pideTotal ? normalizarImporte(totalFinal) : null;
+      if (pideTotal && tf === null) throw new Error('total inválido');
+      const v = calcularVenta(entrada, tf !== null ? { totalFinal: aCentavos(tf) } : modoDesc === 'pct' ? pctNum(descTotal) : 0);
       const comision = cobroTipo === 'caja' && medio ? comisionDeCobro(v.total, medio.comisionPct, medio.ivaComision) : 0;
       return { v, comision, ok: true as const };
     } catch {
       return { ok: false as const };
     }
-  }, [renglones, descTotal, cobroTipo, medio]);
+  }, [renglones, modoDesc, descTotal, totalFinal, cobroTipo, medio]);
+  const pctEquivalente = calculo.ok && calculo.v.subtotal > 0 ? Math.round((calculo.v.descuentoTotal / calculo.v.subtotal) * 10000) / 100 : 0;
+  const alternarDescuento = () => {
+    if (modoDesc === 'pct') { setTotalFinal(calculo.ok ? deCentavos(calculo.v.total) : ''); setModoDesc('total'); }
+    else { setDescTotal(String(pctEquivalente || 0)); setModoDesc('pct'); }
+  };
 
   const buscarCliente = async (q: string) => {
     setBusquedaCliente(q);
@@ -70,6 +84,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
     setBusquedaCliente('');
     if (c.listaId) setListaId(c.listaId);
     setDescTotal(String(c.descuento || 0));
+    setModoDesc('pct');
     if (!c.cuentaCorriente && cobroTipo === 'cuenta_corriente') setCobroTipo('caja');
   };
   const buscarProducto = async (q: string) => {
@@ -100,7 +115,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
     iniciar(async () => {
       setMsg(null);
       const r = await cerrarVentaAccion({
-        clave, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: pctNum(descTotal), nota,
+        clave, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: modoDesc === 'pct' ? pctNum(descTotal) : 0, totalFinal: modoDesc === 'total' && totalFinal.trim() !== '' ? totalFinal : null, nota,
         renglones: renglones.map((x) => ({ productoId: x.productoId, descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio, descuentoPct: pctNum(x.descuentoPct), iva: x.iva })),
         cobro: cobroTipo === 'cuenta_corriente' ? { tipo: 'cuenta_corriente' } : { tipo: 'caja', medioPagoId: medioId, cajaId },
       });
@@ -144,7 +159,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
 
       <div style={tarjeta}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative' }}>
-          <input style={{ ...campo, marginTop: 0, flex: '3 1 260px' }} placeholder="Buscar producto por nombre o código…" value={busquedaProd} onChange={(e) => buscarProducto(e.target.value)} />
+          <input ref={buscarRef} style={{ ...campo, marginTop: 0, flex: '3 1 260px' }} placeholder="Buscar producto por nombre o código…" value={busquedaProd} onChange={(e) => buscarProducto(e.target.value)} />
           <button type="button" style={botonSecundario} onClick={agregarLibre}>+ Ítem libre</button>
           <button type="button" style={botonSecundario} onClick={actualizarPrecios}>Actualizar precios</button>
           {resultadosProd.length > 0 && (
@@ -169,9 +184,9 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
                       {r.productoId ? r.descripcion : <input style={chico} placeholder="Descripción" value={r.descripcion} onChange={(e) => cambiar(r.clave, 'descripcion', e.target.value)} />}
                       {negativo && <div style={{ color: '#b4571a', fontSize: 12 }}>⚠ Queda con stock negativo ({formatearCantidad(r.stock!)} en stock)</div>}
                     </td>
-                    <td style={{ ...celda, width: 80 }}><input ref={(el) => { refs.current[r.clave] = el; }} style={chico} inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(r.clave, 'cantidad', e.target.value)} /></td>
-                    <td style={{ ...celda, width: 110 }}><input style={chico} inputMode="decimal" value={r.precio} onChange={(e) => cambiar(r.clave, 'precio', e.target.value)} /></td>
-                    <td style={{ ...celda, width: 70 }}><input style={chico} inputMode="decimal" value={r.descuentoPct} onChange={(e) => cambiar(r.clave, 'descuentoPct', e.target.value)} /></td>
+                    <td style={{ ...celda, width: 80 }}><input ref={(el) => { refs.current[r.clave] = el; }} style={chico} inputMode="decimal" value={r.cantidad} onKeyDown={enterABuscar} onChange={(e) => cambiar(r.clave, 'cantidad', e.target.value)} /></td>
+                    <td style={{ ...celda, width: 110 }}><input style={chico} inputMode="decimal" value={r.precio} onKeyDown={enterABuscar} onChange={(e) => cambiar(r.clave, 'precio', e.target.value)} /></td>
+                    <td style={{ ...celda, width: 70 }}><input style={chico} inputMode="decimal" value={r.descuentoPct} onKeyDown={enterABuscar} onChange={(e) => cambiar(r.clave, 'descuentoPct', e.target.value)} /></td>
                     {(comprobante === 'factura_a' || comprobante === 'factura_b') && (
                       <td style={{ ...celda, width: 70 }}>{r.productoId ? `${r.iva}%` : (
                         <select style={chico} value={r.iva} onChange={(e) => setRenglones((rs) => rs.map((x) => (x.clave === r.clave ? { ...x, iva: Number(e.target.value) } : x)))}>{[0, 10.5, 21, 27].map((a) => (<option key={a} value={a}>{a}%</option>))}</select>
@@ -190,11 +205,19 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
 
       <div style={tarjeta}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
-          <label style={{ ...etiqueta, flex: '0 1 130px', marginBottom: 0 }}>Descuento total %<input style={campo} inputMode="decimal" value={descTotal} onChange={(e) => setDescTotal(e.target.value)} /></label>
+          <div style={{ ...etiqueta, flex: '0 1 230px', marginBottom: 0 }}>Descuento total
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <button type="button" style={{ ...botonSecundario, whiteSpace: 'nowrap' }} title="Cambiar entre porcentaje y total final" onClick={alternarDescuento}>{modoDesc === 'pct' ? '% descuento' : '$ total final'} ⇄</button>
+              {modoDesc === 'pct'
+                ? <input style={{ ...campo, marginTop: 0 }} inputMode="decimal" aria-label="Descuento en porcentaje" value={descTotal} onChange={(e) => setDescTotal(e.target.value)} />
+                : <input style={{ ...campo, marginTop: 0 }} inputMode="decimal" aria-label="Total final" value={totalFinal} onChange={(e) => setTotalFinal(e.target.value)} />}
+            </div>
+          </div>
           <label style={{ ...etiqueta, flex: '3 1 260px', marginBottom: 0 }}>Nota<input style={campo} value={nota} onChange={(e) => setNota(e.target.value)} /></label>
         </div>
         <div style={{ textAlign: 'right', marginTop: 12 }}>
-          {calculo.ok && calculo.v.descuentoTotal > 0 && <div>Subtotal {$(calculo.v.subtotal)} · Descuento: −{$(calculo.v.descuentoTotal)}</div>}
+          {calculo.ok && calculo.v.descuentoTotal > 0 && <div>Subtotal {$(calculo.v.subtotal)} · Descuento: −{$(calculo.v.descuentoTotal)} ({String(pctEquivalente).replace('.', ',')} %)</div>}
+          {!calculo.ok && modoDesc === 'total' && totalFinal.trim() !== '' && renglones.length > 0 && <div style={{ color: '#b4571a', fontSize: 13 }}>El total final no puede superar al subtotal.</div>}
           <div style={{ fontSize: 24 }}><b>Total {calculo.ok ? $(calculo.v.total) : '—'}</b></div>
           {calculo.ok && (comprobante === 'factura_a' || comprobante === 'factura_b') && <div style={{ color: '#5c6d66', fontSize: 13 }}>IVA incluido en el total: {$(calculo.v.ivaIncluido)}</div>}
           {calculo.ok && calculo.comision > 0 && <div style={{ color: '#5c6d66', fontSize: 13 }}>Comisión {$(calculo.comision)} · Neto a cobrar {$(calculo.v.total - calculo.comision)}</div>}
