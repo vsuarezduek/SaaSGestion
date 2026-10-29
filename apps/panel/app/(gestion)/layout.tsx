@@ -13,6 +13,7 @@ export default async function Gestion({ children }: { children: ReactNode }) {
         <b style={{ fontFamily: 'Georgia, serif' }}>{s.comercio}</b>
         <Link href="/panel" style={enlace}>Inicio</Link>
         <Link href="/productos" style={enlace}>Productos</Link>
+        <Link href="/ventas" style={enlace}>Ventas</Link>
         <Link href="/clientes" style={enlace}>Clientes</Link>
         <Link href="/proveedores" style={enlace}>Proveedores</Link>
         <Link href="/cajas" style={enlace}>Cajas</Link>

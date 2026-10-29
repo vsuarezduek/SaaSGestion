@@ -30,7 +30,7 @@ function mapCaja(f: { id: string; nombre: string; tipo: 'efectivo' | 'digital'; 
   return { id: f.id, nombre: f.nombre, tipo: f.tipo, impuestoTransaccion: Number(f.impuesto_transaccion), activa: f.activa, abierta: f.turno_id !== null, saldo: f.saldo, turnoId: f.turno_id };
 }
 
-async function cajaEn(c: PoolClient, s: SesionActiva, id: string): Promise<Caja> {
+export async function cajaEn(c: PoolClient, s: SesionActiva, id: string): Promise<Caja> {
   const r = await c.query(
     `SELECT c.id, c.nombre, c.tipo, c.impuesto_transaccion::text, c.activa, ${SALDO_SQL}::text AS saldo,
             (SELECT t.id FROM caja_turnos t WHERE t.caja_id = c.id AND t.cerrado_en IS NULL) AS turno_id
