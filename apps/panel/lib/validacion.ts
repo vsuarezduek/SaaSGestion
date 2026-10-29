@@ -232,3 +232,16 @@ export const esquemaVenta = z.object({
   ]),
 });
 export type DatosVenta = z.infer<typeof esquemaVenta>;
+
+// ───────── Recibos de cuenta corriente ─────────
+export const esquemaRecibo = z.object({
+  clave: z.string().uuid(),
+  clienteId: z.string().uuid(),
+  ventaId: z.string().uuid().nullable(),
+  importe: importePositivo('Importe'),
+  medioPagoId: z.string().uuid(),
+  cajaId: z.string().uuid(),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+});
+export type DatosRecibo = z.infer<typeof esquemaRecibo>;
