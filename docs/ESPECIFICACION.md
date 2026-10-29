@@ -139,6 +139,7 @@ Mismo esquema que ventas, con proveedor y "pagar desde" en lugar de cobrar en.
 13. Descuento total % se aplica sobre (subtotal − descuentos por renglón).
 14. Las ventas abiertas se guardan automáticamente y no reaparecen luego de cerrarse o eliminarse.
 15. Un cliente/proveedor/producto "eliminado" se oculta pero conserva su historial.
+16. **El stock puede quedar negativo** (no se bloquea la venta), pero el sistema lo **alerta**: aviso al agregar el producto a la venta, y lista de productos con stock negativo en Inicio y en Productos.
 
 ## 12. Pendiente / fuera del prototipo
 
