@@ -210,7 +210,7 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
       }
     }
 
-    if (cajaDestino) {
+    if (cajaDestino && calc.total > 0) { // una venta de $0 (todo descontado) no mueve la caja
       const fecha = d.fecha;
       await c.query(
         `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, usuario_id, venta_id, fecha)

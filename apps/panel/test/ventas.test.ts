@@ -301,7 +301,9 @@ test('descuento por total final: la venta cierra en ese total y guarda el descue
   const r2 = await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], descuentoTotalPct: 50, totalFinal: '900' });
   assert.equal(r2.total, '900.00');
   // Total 0 = todo descontado; superar el subtotal se rechaza.
-  assert.equal((await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '0', cobro: { tipo: 'cuenta_corriente' } }).catch(() => ({ total: 'x' }))).total.length > 0, true);
+  const cajaAntes = await saldoCaja(A, efectivo);
+  assert.equal((await venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '0' })).total, '0.00');
+  assert.equal(await saldoCaja(A, efectivo), cajaAntes); // sin cobro, la caja no se mueve
   await assert.rejects(venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '1000.01' }), ErrorDeUsuario);
   await assert.rejects(venta(A, { clienteId: consumidor, renglones: [renglon(cafe, '1')], totalFinal: '-5' }), ErrorDeUsuario);
 });
