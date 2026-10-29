@@ -7,7 +7,7 @@ import { sesionObligatoria } from '../../../lib/sesion.ts';
 
 export interface Resultado { error?: string }
 
-async function intentar(fn: (s: Awaited<ReturnType<typeof sesionObligatoria>>) => Promise<unknown>, rutas: string[]): Promise<Resultado> {
+async function intentar(fn: (s: Awaited<ReturnType<typeof sesionObligatoria>>) => Promise<unknown>): Promise<Resultado> {
   const s = await sesionObligatoria();
   try {
     await fn(s);
@@ -15,13 +15,25 @@ async function intentar(fn: (s: Awaited<ReturnType<typeof sesionObligatoria>>) =
     if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
     throw e;
   }
-  for (const r of rutas) revalidatePath(r);
+  revalidatePath('/cajas', 'layout'); // lista, detalle e historial de cierres
   return {};
 }
 
-export const guardarCajaAccion = (id: string | null, d: unknown) => intentar((s) => guardarCaja(s, id, d), ['/cajas']);
-export const abrirCajaAccion = (id: string, d: unknown) => intentar((s) => abrirCaja(s, id, d), ['/cajas', `/cajas/${id}`]);
-export const cerrarCajaAccion = (id: string, d: unknown) => intentar((s) => cerrarCaja(s, id, d), ['/cajas', `/cajas/${id}`, '/cajas/cierres']);
-export const movimientoCajaAccion = (id: string, d: unknown) => intentar((s) => movimientoManual(s, id, d), ['/cajas', `/cajas/${id}`]);
-export const transferirAccion = (d: unknown) => intentar((s) => transferir(s, d), ['/cajas', '/cajas/[id]']);
-export const anularAccion = (id: string, mov: string) => intentar((s) => revertirMovimientoCaja(s, id, mov), ['/cajas', `/cajas/${id}`]);
+export async function guardarCajaAccion(id: string | null, d: unknown): Promise<Resultado> {
+  return intentar((s) => guardarCaja(s, id, d));
+}
+export async function abrirCajaAccion(id: string, d: unknown): Promise<Resultado> {
+  return intentar((s) => abrirCaja(s, id, d));
+}
+export async function cerrarCajaAccion(id: string, d: unknown): Promise<Resultado> {
+  return intentar((s) => cerrarCaja(s, id, d));
+}
+export async function movimientoCajaAccion(id: string, d: unknown): Promise<Resultado> {
+  return intentar((s) => movimientoManual(s, id, d));
+}
+export async function transferirAccion(d: unknown): Promise<Resultado> {
+  return intentar((s) => transferir(s, d));
+}
+export async function anularAccion(id: string, mov: string): Promise<Resultado> {
+  return intentar((s) => revertirMovimientoCaja(s, id, mov));
+}
