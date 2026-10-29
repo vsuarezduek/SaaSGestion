@@ -127,3 +127,67 @@ export const esquemaMovimientoStock = z.object({
   cantidad: cantidad('Cantidad', { cero: false, negativo: true }), // + entra, − sale
   concepto: textoOpcional(200),
 });
+
+// ───────── Cajas ─────────
+const importePositivo = (campo: string) =>
+  z.string().transform((s, ctx) => {
+    const n = normalizarImporte(s);
+    if (n === null || n.startsWith('-') || Number(n) === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${campo}: tiene que ser un importe mayor a cero` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+const importeNoNegativo = (campo: string) =>
+  z.string().transform((s, ctx) => {
+    const n = normalizarImporte(s === '' ? '0' : s);
+    if (n === null || n.startsWith('-')) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${campo}: importe inválido` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+/** "2026-10-29T13:30" (hora de Argentina, UTC−3 todo el año) → instante ISO; vacío → null (= ahora). */
+const fechaArgentina = z
+  .string()
+  .default('')
+  .transform((s, ctx) => {
+    if (s.trim() === '') return null;
+    const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2})?$/.exec(s.trim());
+    const d = m ? new Date(`${m[1]}T${m[2]}:00-03:00`) : null;
+    if (!d || Number.isNaN(d.getTime())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'La fecha no es válida' });
+      return z.NEVER;
+    }
+    return d.toISOString();
+  });
+
+export const esquemaCaja = z.object({
+  nombre: z.string().trim().min(1, 'Falta el nombre de la caja').max(60, 'El nombre es demasiado largo'),
+  tipo: z.enum(['efectivo', 'digital']),
+  impuestoTransaccion: z.number().min(0, 'El impuesto no puede ser negativo').max(100, 'El impuesto no puede pasar de 100'),
+});
+
+export const esquemaMovimientoCaja = z.object({
+  tipo: z.enum(['ingreso', 'egreso']),
+  importe: importePositivo('Importe'),
+  concepto: textoOpcional(200),
+  fecha: fechaArgentina,
+});
+
+export const esquemaTransferencia = z.object({
+  origenId: z.string().uuid(),
+  destinoId: z.string().uuid(),
+  importe: importePositivo('Importe').nullable(), // null = transferir todo el saldo
+  concepto: textoOpcional(200),
+});
+
+export const esquemaApertura = z.object({ contado: importeNoNegativo('Efectivo contado') });
+
+export const esquemaCierre = z.object({
+  contado: importeNoNegativo('Efectivo contado'),
+  cambioDejado: importeNoNegativo('Cambio que se deja'),
+  destinoId: z.string().uuid().nullable(),
+});
