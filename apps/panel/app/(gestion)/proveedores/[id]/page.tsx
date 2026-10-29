@@ -17,7 +17,7 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
       <h1 style={{ fontFamily: 'Georgia, serif' }}>{p.nombre}</h1>
       <CuentaCorriente
         tipo="proveedor" id={p.id} saldo={formatearPesos(aCentavos(p.saldo))} puedeOperar
-        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '' }))}
+        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId }))}
       />
       <FormularioPersona
         tipo="proveedor" categoriasProveedor={cats}

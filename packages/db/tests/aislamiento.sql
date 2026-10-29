@@ -330,4 +330,37 @@ DO $$ BEGIN
     RAISE EXCEPTION 'B ve ventas de A'; END IF;
 END $$;
 
+-- 15) Recibos: aislados, inmutables una vez cerrados, vinculados a los libros de caja y cuenta corriente.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO cajas (tenant_id, nombre) VALUES (app.tenant_id(), 'Caja recibos');
+INSERT INTO medios_pago (tenant_id, nombre) VALUES (app.tenant_id(), 'Medio recibos');
+INSERT INTO recibos (tenant_id, numero, cliente_id, importe, medio_pago_id, caja_id)
+  SELECT app.tenant_id(), 1, (SELECT id FROM clientes WHERE nombre = 'Cliente venta'), 500,
+         (SELECT id FROM medios_pago WHERE nombre = 'Medio recibos'), (SELECT id FROM cajas WHERE nombre = 'Caja recibos');
+INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, recibo_id)
+  SELECT app.tenant_id(), cliente_id, 'recibo', -500, id FROM recibos;
+DO $$ BEGIN
+  BEGIN
+    INSERT INTO recibos (tenant_id, numero, cliente_id, importe, medio_pago_id, caja_id)
+      SELECT app.tenant_id(), 1, cliente_id, 1, medio_pago_id, caja_id FROM recibos;
+    RAISE EXCEPTION 'aceptó un número repetido';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO recibos (tenant_id, numero, cliente_id, importe, medio_pago_id, caja_id)
+      SELECT app.tenant_id(), 2, cliente_id, 0, medio_pago_id, caja_id FROM recibos;
+    RAISE EXCEPTION 'aceptó un recibo sin importe';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN UPDATE recibos SET importe = 1; RAISE EXCEPTION 'permitió cambiar un recibo cerrado';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM recibos; RAISE EXCEPTION 'permitió borrar un recibo';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  UPDATE recibos SET estado = 'anulado', anulado_en = now(), motivo_anulacion = 'prueba';
+  BEGIN UPDATE recibos SET nota = 'x'; RAISE EXCEPTION 'permitió tocar un recibo anulado';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM recibos) <> 0 THEN RAISE EXCEPTION 'B ve recibos de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

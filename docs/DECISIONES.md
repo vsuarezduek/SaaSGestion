@@ -84,3 +84,10 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Caja cerrada:** se puede anular igual; la reversión queda en el libro de la caja sin turno (D-012).
 - **Corregir una venta:** se anula y se carga la correcta (la edición directa no existe en el modelo real).
 - **Pendiente:** recibos de cuenta corriente, nota de crédito/devolución, ventas abiertas y pedidos.
+
+## D-015 · Recibos de cuenta corriente
+- **Estado:** Aceptada para la etapa 1 (segunda entrega de Ventas, parte 2).
+- **Decisión:** el cliente paga su deuda con un recibo (total, parcial o de más: queda saldo a favor). Registrar un recibo es una sola transacción: el recibo (numeración correlativa propia), el ingreso en una caja abierta con un medio de pago habilitado (`cobro_recibo`, más `comision_recibo` si el medio tiene comisión) y el movimiento de cuenta corriente que baja el saldo. El saldo sigue siendo la suma del libro del cliente: el recibo puede indicar a qué venta corresponde, pero es informativo.
+- **Anulación:** igual que las ventas (D-014): motivo obligatorio y movimientos inversos que referencian al original; funciona con la caja cerrada. Los movimientos que vienen de una venta o un recibo no se revierten a mano en la cuenta corriente: se anula el documento.
+- **Historial:** cada movimiento de la cuenta corriente muestra el saldo que quedó después de él.
+- **Pendiente:** órdenes de pago a proveedores (espejo de esto con Compras), nota de crédito/devolución, ventas abiertas y pedidos.
