@@ -7,7 +7,7 @@ Mientras se construye el sistema real, Mística sigue operando con el prototipo 
 ## Etapa 0 — Cimientos
 
 - Repositorio, monorepo, convenciones, CI (tests y chequeos en cada Pull Request).
-- Entornos: local, staging y producción en Railway; dominio saasgestion.com.ar apuntado.
+- Entornos: local, staging y producción (Vercel + Neon); dominio saasgestion.com.ar apuntado.
 - Base de datos con migraciones y Row Level Security por tenant.
 - Autenticación, usuarios, roles y permisos en el servidor.
 - Auditoría, manejo de errores, copias de seguridad.
