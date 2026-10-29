@@ -16,7 +16,7 @@ async function sesionDe(slug: string, email: string): Promise<SesionActiva> {
   return { usuarioId: u.rows[0]!.id, tenantId, comercio: slug, nombre: 'Admin', email, rol: 'administrador', permisos: [] };
 }
 
-const base = { codigo: '', nombre: 'Producto', rubroId: null as string | null, tipo: '', unidad: 'unidad', costo: '100', iva: 21, vendible: true, comprable: true, integrable: false, publicadoWeb: false, urlWeb: '', precios: {} as Record<string, string> };
+const base = { codigo: '', nombre: 'Producto', rubroId: null as string | null, tipo: '', unidad: 'unidad', costo: '100', iva: 21, vendible: true, comprable: true, integrable: false, publicadoWeb: false, urlWeb: '', precios: {} as Record<string, string>, stockMinimo: '', stockIdeal: '' };
 
 before(async () => {
   A = await sesionDe(`cat-a-${sufijo}`, 'a@ejemplo.test');

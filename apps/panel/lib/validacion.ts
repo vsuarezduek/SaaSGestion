@@ -1,6 +1,6 @@
 // Validación de entradas con Zod. Los importes entran como texto de una persona y salen como "1234.50".
 import { z } from 'zod';
-import { ALICUOTAS_IVA, normalizarImporte } from '../../../packages/dominio/src/index.ts';
+import { ALICUOTAS_IVA, normalizarCantidad, normalizarImporte } from '../../../packages/dominio/src/index.ts';
 
 const importe = (campo: string) =>
   z.string().transform((s, ctx) => {
@@ -19,6 +19,16 @@ const textoOpcional = (max: number) =>
     .max(max)
     .transform((s) => (s === '' ? null : s));
 
+const cantidad = (campo: string, { cero = true, negativo = false } = {}) =>
+  z.string().default('').transform((s, ctx) => {
+    const n = normalizarCantidad(s === '' ? '0' : s);
+    if (n === null || (!negativo && n.startsWith('-')) || (!cero && Number(n) === 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${campo}: cantidad inválida` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
 export const esquemaProducto = z.object({
   codigo: textoOpcional(40),
   nombre: z.string().trim().min(1, 'Falta el nombre').max(200, 'El nombre es demasiado largo'),
@@ -26,6 +36,8 @@ export const esquemaProducto = z.object({
   tipo: textoOpcional(60),
   unidad: z.string().trim().min(1, 'Falta la unidad').max(20),
   costo: importe('Costo'),
+  stockMinimo: cantidad('Stock mínimo'),
+  stockIdeal: cantidad('Stock ideal'),
   iva: z.number().refine((v) => (ALICUOTAS_IVA as readonly number[]).includes(v), 'El IVA no es válido'),
   vendible: z.boolean(),
   comprable: z.boolean(),
@@ -107,5 +119,11 @@ export const esquemaMovimiento = z.object({
     }
     return n; // con signo: + aumenta la deuda, − la reduce
   }),
+  concepto: textoOpcional(200),
+});
+
+export const esquemaMovimientoStock = z.object({
+  tipo: z.enum(['saldo_inicial', 'ajuste']),
+  cantidad: cantidad('Cantidad', { cero: false, negativo: true }), // + entra, − sale
   concepto: textoOpcional(200),
 });

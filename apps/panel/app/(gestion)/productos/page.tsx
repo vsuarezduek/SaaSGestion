@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { listarProductos, listarRubros, listasDePrecios, tiposDeProducto } from '../../../lib/catalogo.ts';
 import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
-import { formatearPesos, aCentavos } from '../../../../../packages/dominio/src/index.ts';
+import { aCentavos, estadoStock, formatearCantidad, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
 
 export const dynamic = 'force-dynamic';
 
-type Params = { q?: string; rubro?: string; tipo?: string; estado?: string; limite?: string };
+type Params = { q?: string; rubro?: string; tipo?: string; estado?: string; alerta?: string; limite?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<Params> }) {
   const p = await searchParams;
@@ -14,7 +14,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
   const limite = Math.min(Number(p.limite) || 50, 500);
   const estado = p.estado === 'archivados' || p.estado === 'todos' ? p.estado : 'activos';
   const [{ filas, total }, listas, rubros, tipos] = await Promise.all([
-    listarProductos(s, { q: p.q, rubroId: p.rubro || undefined, tipo: p.tipo || undefined, estado, limite }),
+    listarProductos(s, { q: p.q, rubroId: p.rubro || undefined, tipo: p.tipo || undefined, estado, limite, alerta: p.alerta === 'negativo' || p.alerta === 'bajo_minimo' ? p.alerta : undefined }),
     listasDePrecios(s),
     listarRubros(s),
     tiposDeProducto(s),
@@ -45,13 +45,16 @@ export default async function Productos({ searchParams }: { searchParams: Promis
           <option value="archivados">Archivados</option>
           <option value="todos">Todos</option>
         </select>
+        <select name="alerta" defaultValue={p.alerta ?? ''} style={{ ...campo, flex: '1 1 140px', marginTop: 0 }}>
+          <option value="">Todo el stock</option><option value="negativo">Stock negativo</option><option value="bajo_minimo">Bajo el mínimo</option>
+        </select>
         <button type="submit" style={boton}>Buscar</button>
       </form>
       <div style={{ ...tarjeta, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={celda}>Código</th><th style={celda}>Producto</th><th style={celda}>Rubro</th><th style={celda}>Costo</th>
+              <th style={celda}>Código</th><th style={celda}>Producto</th><th style={celda}>Rubro</th><th style={celda}>Stock</th><th style={celda}>Costo</th>
               {listas.map((l) => (<th key={l.id} style={celda}>{l.nombre}</th>))}
             </tr>
           </thead>
@@ -61,11 +64,14 @@ export default async function Productos({ searchParams }: { searchParams: Promis
                 <td style={celda}>{f.codigo ?? ''}</td>
                 <td style={celda}><Link href={`/productos/${f.id}`} style={{ color: '#1c9764' }}>{f.nombre}</Link></td>
                 <td style={celda}>{f.rubro ?? ''}</td>
+                <td style={{ ...celda, fontWeight: 600, color: estadoStock(f.stock, f.stockMinimo) === 'negativo' ? '#b4571a' : estadoStock(f.stock, f.stockMinimo) === 'bajo_minimo' ? '#8a6d00' : 'inherit' }}>
+                  {formatearCantidad(f.stock)}{estadoStock(f.stock, f.stockMinimo) !== 'normal' ? ' ⚠' : ''}
+                </td>
                 <td style={celda}>{formatearPesos(aCentavos(f.costo))}</td>
                 {listas.map((l) => (<td key={l.id} style={celda}>{f.precios[l.id] ? formatearPesos(aCentavos(f.precios[l.id]!)) : '—'}</td>))}
               </tr>
             ))}
-            {filas.length === 0 && (<tr><td style={celda} colSpan={4 + listas.length}>No hay productos con ese filtro.</td></tr>)}
+            {filas.length === 0 && (<tr><td style={celda} colSpan={5 + listas.length}>No hay productos con ese filtro.</td></tr>)}
           </tbody>
         </table>
         <p style={{ fontSize: 13, color: '#5c6d66' }}>Mostrando {filas.length} de {total}.</p>

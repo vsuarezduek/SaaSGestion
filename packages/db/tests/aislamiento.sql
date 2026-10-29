@@ -192,4 +192,41 @@ DO $$ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 END $$;
 
+-- 12) Stock: libro de solo agregar, aislado, con reversión única y que admite negativo.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO productos (tenant_id, codigo, nombre) VALUES (app.tenant_id(), 'S1', 'Con stock');
+INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad)
+  SELECT app.tenant_id(), id, 'saldo_inicial', 5.500 FROM productos WHERE codigo = 'S1';
+SELECT set_config('test.prod_s', (SELECT id::text FROM productos WHERE codigo = 'S1'), false);
+SELECT set_config('test.mov_s', (SELECT id::text FROM stock_movimientos), false);
+DO $$ BEGIN
+  -- Puede quedar negativo.
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad)
+    VALUES (app.tenant_id(), current_setting('test.prod_s')::uuid, 'ajuste', -8);
+  IF (SELECT sum(cantidad) FROM stock_movimientos) <> -2.5 THEN RAISE EXCEPTION 'el stock negativo no se calcula bien'; END IF;
+  BEGIN UPDATE stock_movimientos SET cantidad = 1; RAISE EXCEPTION 'permitió modificar stock';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM stock_movimientos; RAISE EXCEPTION 'permitió borrar stock';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN
+    INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad) VALUES (app.tenant_id(), current_setting('test.prod_s')::uuid, 'ajuste', 0);
+    RAISE EXCEPTION 'aceptó cantidad cero';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, revierte_id)
+    VALUES (app.tenant_id(), current_setting('test.prod_s')::uuid, 'reversion', -5.5, current_setting('test.mov_s')::bigint);
+  BEGIN
+    INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, revierte_id)
+      VALUES (app.tenant_id(), current_setting('test.prod_s')::uuid, 'reversion', -5.5, current_setting('test.mov_s')::bigint);
+    RAISE EXCEPTION 'aceptó revertir dos veces';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM stock_movimientos) <> 0 THEN RAISE EXCEPTION 'B ve stock de A'; END IF;
+  BEGIN
+    INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad) VALUES (app.tenant_id(), current_setting('test.prod_s')::uuid, 'ajuste', 1);
+    RAISE EXCEPTION 'B movió stock de un producto de A';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

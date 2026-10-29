@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { conTenant } from '../../../lib/db.ts';
 import { botonSecundario, pagina, tarjeta } from '../../../lib/estilos.ts';
+import { alertasDeStock } from '../../../lib/stock.ts';
+import { formatearCantidad } from '../../../../../packages/dominio/src/index.ts';
+import Link from 'next/link';
 import { sesionActual } from '../../../lib/sesion.ts';
 import { salirAccion } from '../../ingresar/acciones.ts';
 
@@ -18,12 +21,28 @@ export default async function Panel() {
     ),
   );
 
+  const alertas = await alertasDeStock(sesion);
   return (
     <main style={pagina}>
       <h1 style={{ fontFamily: 'Georgia, serif', marginBottom: 4 }}>{sesion.comercio}</h1>
       <p style={{ marginTop: 0, color: '#5c6d66' }}>
         {sesion.nombre} · {sesion.rol}
       </p>
+      {(alertas.negativos.length > 0 || alertas.bajoMinimo.length > 0) && (
+        <div style={tarjeta}>
+          <b>Alertas de stock</b>
+          {alertas.negativos.map((a) => (
+            <div key={a.id} style={{ padding: '4px 0', fontSize: 14, color: '#b4571a' }}>
+              ⚠ <Link href={`/productos/${a.id}`} style={{ color: 'inherit' }}>{a.nombre}</Link>: stock negativo ({formatearCantidad(a.stock)})
+            </div>
+          ))}
+          {alertas.bajoMinimo.map((a) => (
+            <div key={a.id} style={{ padding: '4px 0', fontSize: 14, color: '#8a6d00' }}>
+              <Link href={`/productos/${a.id}`} style={{ color: 'inherit' }}>{a.nombre}</Link>: {formatearCantidad(a.stock)} (mínimo {formatearCantidad(a.minimo)})
+            </div>
+          ))}
+        </div>
+      )}
       <div style={tarjeta}>
         <b>Actividad reciente</b>
         {actividad.rows.map((f, i) => (

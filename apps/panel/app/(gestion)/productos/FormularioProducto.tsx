@@ -8,7 +8,7 @@ export interface Inicial {
   id: string | null;
   codigo: string; nombre: string; rubroId: string; tipo: string; unidad: string; costo: string; iva: number;
   vendible: boolean; comprable: boolean; integrable: boolean; publicadoWeb: boolean; urlWeb: string;
-  activo: boolean; precios: Record<string, string>;
+  activo: boolean; precios: Record<string, string>; stockMinimo: string; stockIdeal: string;
 }
 interface Props {
   inicial: Inicial;
@@ -40,7 +40,7 @@ export default function FormularioProducto({ inicial, listas, rubros }: Props) {
       setMsg(null);
       const r = await guardarProductoAccion(d.id, {
         codigo: d.codigo, nombre: d.nombre, rubroId: d.rubroId || null, tipo: d.tipo, unidad: d.unidad, costo: d.costo, iva: d.iva,
-        vendible: d.vendible, comprable: d.comprable, integrable: d.integrable, publicadoWeb: d.publicadoWeb, urlWeb: d.urlWeb,
+        stockMinimo: d.stockMinimo, stockIdeal: d.stockIdeal, vendible: d.vendible, comprable: d.comprable, integrable: d.integrable, publicadoWeb: d.publicadoWeb, urlWeb: d.urlWeb,
         precios: Object.fromEntries(Object.entries(d.precios).filter(([, v]) => v.trim() !== '')),
       });
       if (r?.error) setMsg(r.error);
@@ -74,6 +74,10 @@ export default function FormularioProducto({ inicial, listas, rubros }: Props) {
             {ALICUOTAS_IVA.map((a) => (<option key={a} value={a}>{a}</option>))}
           </select>
         </label>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <label style={{ ...etiqueta, flex: '1 1 140px' }}>Stock mínimo (avisa si baja de acá)<input style={campo} inputMode="decimal" value={d.stockMinimo} onChange={(e) => set('stockMinimo', e.target.value)} /></label>
+        <label style={{ ...etiqueta, flex: '1 1 140px' }}>Stock ideal (para armar compras)<input style={campo} inputMode="decimal" value={d.stockIdeal} onChange={(e) => set('stockIdeal', e.target.value)} /></label>
       </div>
       <b style={{ fontSize: 14 }}>Precios de venta (con IVA incluido)</b>
       {listas.map((l) => (
