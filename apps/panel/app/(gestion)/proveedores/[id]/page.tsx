@@ -1,0 +1,28 @@
+import { notFound } from 'next/navigation';
+import { categoriasDeProveedor, movimientosDe, obtenerProveedor } from '../../../../lib/personas.ts';
+import { sesionObligatoria } from '../../../../lib/sesion.ts';
+import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
+import CuentaCorriente from '../../CuentaCorriente.tsx';
+import FormularioPersona from '../../FormularioPersona.tsx';
+
+export const dynamic = 'force-dynamic';
+
+export default async function FichaProveedor({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const s = await sesionObligatoria();
+  const [p, cats, movs] = await Promise.all([obtenerProveedor(s, id), categoriasDeProveedor(s), movimientosDe(s, { proveedor: id })]);
+  if (!p) notFound();
+  return (
+    <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
+      <h1 style={{ fontFamily: 'Georgia, serif' }}>{p.nombre}</h1>
+      <CuentaCorriente
+        tipo="proveedor" id={p.id} saldo={formatearPesos(aCentavos(p.saldo))} puedeOperar
+        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '' }))}
+      />
+      <FormularioPersona
+        tipo="proveedor" categoriasProveedor={cats}
+        inicial={{ id: p.id, nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', domicilio: p.domicilio ?? '', localidad: p.localidad ?? '', cuit: p.cuit ?? '', condicionIva: p.condicionIva ?? '', categoriaId: '', contacto: p.contacto ?? '', categoria: p.categoria ?? '', activo: p.activo, esConsumidorFinal: false }}
+      />
+    </main>
+  );
+}

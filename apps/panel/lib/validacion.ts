@@ -46,3 +46,66 @@ export const esquemaRubro = z.object({
 export function primerError(e: z.ZodError): string {
   return e.issues[0]?.message ?? 'Datos inválidos';
 }
+
+// ───────── Clientes, proveedores y cuenta corriente ─────────
+const CONDICIONES = ['consumidor_final', 'responsable_inscripto', 'monotributo', 'exento'] as const;
+
+const cuit = z
+  .string()
+  .trim()
+  .transform((s) => s.replace(/[-\s]/g, ''))
+  .refine((s) => s === '' || /^\d{11}$/.test(s), 'El CUIT debe tener 11 números')
+  .transform((s) => (s === '' ? null : s));
+
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(200)
+  .refine((s) => s === '' || /^[^@\s]+@[^@\s]+$/.test(s), 'El mail no es válido')
+  .transform((s) => (s === '' ? null : s));
+
+const datosPersona = {
+  nombre: z.string().trim().min(1, 'Falta el nombre').max(200, 'El nombre es demasiado largo'),
+  telefono: textoOpcional(40),
+  email,
+  domicilio: textoOpcional(200),
+  localidad: textoOpcional(100),
+  cuit,
+};
+
+export const esquemaCliente = z.object({
+  ...datosPersona,
+  categoriaId: z.string().uuid().nullable(),
+  condicionIva: z.enum(CONDICIONES),
+});
+export type DatosCliente = z.infer<typeof esquemaCliente>;
+
+export const esquemaProveedor = z.object({
+  ...datosPersona,
+  contacto: textoOpcional(120),
+  categoria: textoOpcional(60),
+  condicionIva: z.enum(CONDICIONES).nullable(),
+});
+export type DatosProveedor = z.infer<typeof esquemaProveedor>;
+
+export const esquemaCategoriaCliente = z.object({
+  nombre: z.string().trim().min(1, 'Falta el nombre de la categoría').max(60),
+  listaId: z.string().uuid().nullable(),
+  cuentaCorriente: z.boolean(),
+  descuento: z.number().min(0, 'El descuento no puede ser negativo').max(100, 'El descuento no puede pasar de 100'),
+  ventaACosto: z.boolean(),
+});
+
+export const esquemaMovimiento = z.object({
+  tipo: z.enum(['saldo_inicial', 'ajuste']),
+  importe: z.string().transform((s, ctx) => {
+    const n = normalizarImporte(s);
+    if (n === null || Number(n) === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Importe inválido' });
+      return z.NEVER;
+    }
+    return n; // con signo: + aumenta la deuda, − la reduce
+  }),
+  concepto: textoOpcional(200),
+});

@@ -141,4 +141,55 @@ DO $$ BEGIN
   EXCEPTION WHEN check_violation THEN NULL; END;
 END $$;
 
+-- 11) Clientes, proveedores y libro de cuenta corriente.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO clientes (tenant_id, nombre, es_consumidor_final) VALUES (app.tenant_id(), 'Consumidor Final', true);
+INSERT INTO proveedores (tenant_id, nombre) VALUES (app.tenant_id(), 'Proveedor A');
+INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe)
+  SELECT app.tenant_id(), id, 'saldo_inicial', 1500.50 FROM clientes;
+SELECT set_config('test.cliente_a', (SELECT id::text FROM clientes), false);
+SELECT set_config('test.mov_a', (SELECT id::text FROM cuenta_corriente_movimientos), false);
+DO $$ BEGIN
+  -- Solo un Consumidor Final por comercio.
+  BEGIN
+    INSERT INTO clientes (tenant_id, nombre, es_consumidor_final) VALUES (app.tenant_id(), 'Otro CF', true);
+    RAISE EXCEPTION 'aceptó dos consumidores finales';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  -- El libro es de solo agregar.
+  BEGIN
+    UPDATE cuenta_corriente_movimientos SET importe = 1;
+    RAISE EXCEPTION 'permitió modificar un movimiento';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN
+    DELETE FROM cuenta_corriente_movimientos;
+    RAISE EXCEPTION 'permitió borrar un movimiento';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  -- Un movimiento no puede ser de cliente y proveedor a la vez, ni de ninguno.
+  BEGIN
+    INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe)
+      SELECT app.tenant_id(), (SELECT id FROM clientes), (SELECT id FROM proveedores), 'ajuste', 5;
+    RAISE EXCEPTION 'aceptó cliente y proveedor juntos';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  -- Una reversión referencia al original y solo se puede hacer una vez.
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, revierte_id)
+    SELECT app.tenant_id(), id, 'reversion', -1500.50, current_setting('test.mov_a')::bigint FROM clientes;
+  BEGIN
+    INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, revierte_id)
+      SELECT app.tenant_id(), id, 'reversion', -1500.50, current_setting('test.mov_a')::bigint FROM clientes;
+    RAISE EXCEPTION 'aceptó revertir dos veces';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  IF (SELECT sum(importe) FROM cuenta_corriente_movimientos) <> 0 THEN RAISE EXCEPTION 'el saldo no volvió a cero'; END IF;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM clientes) + (SELECT count(*) FROM proveedores) + (SELECT count(*) FROM cuenta_corriente_movimientos) <> 0 THEN
+    RAISE EXCEPTION 'B ve clientes, proveedores o movimientos de A'; END IF;
+  -- B no puede registrar un movimiento sobre un cliente de A.
+  BEGIN
+    INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe)
+      VALUES (app.tenant_id(), current_setting('test.cliente_a')::uuid, 'ajuste', 10);
+    RAISE EXCEPTION 'B movió la cuenta de un cliente de A';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos
