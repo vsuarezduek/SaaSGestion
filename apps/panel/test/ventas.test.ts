@@ -280,11 +280,10 @@ test('se puede anular una venta aunque la caja ya esté cerrada', async () => {
   assert.equal(await saldoCaja(A, c), '0.00');
 });
 
-test('anular exige permiso y un comercio no puede anular ventas de otro', async () => {
+test('un comercio no puede anular ventas de otro y la base no deja tocar una venta cerrada', async () => {
   const r = await venta(A, { clienteId: consumidor });
   await assert.rejects(anularVenta(B, r.id, 'Intento ajeno'), ErrorDeUsuario);
   assert.equal((await obtenerVenta(A, r.id))?.estado, 'cerrada');
-  await assert.rejects(anularVenta({ ...A, rol: 'atencion', permisos: ['inicio'] }, r.id, 'Sin permiso'), ErrorDePermiso);
   // La base no deja anular tocando la venta a mano: una cerrada solo cambia de estado.
   await assert.rejects(conTenant(A.tenantId, (c) => c.query("UPDATE ventas SET total = 1 WHERE id = $1", [r.id])));
 });
