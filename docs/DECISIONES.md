@@ -50,3 +50,10 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Migraciones:** en Preview se aplican en cada compilación; en Production se aplican a mano.
 - **Costo:** planes gratuitos mientras sea desarrollo. Vercel Hobby no permite uso comercial: antes de operar a Mística sobre el sistema real hay que pasar a un plan pago y tener copias de seguridad de la base.
 - **Pendiente:** tareas en segundo plano (facturación, mails) con tareas programadas de Vercel o un servicio aparte; las ramas de Neon que vencen solas no sirven para staging (se crea sin vencimiento).
+
+## D-010 · Catálogo de productos: listas de precios configurables y sin stock todavía
+- **Estado:** Aceptada para la etapa 1.
+- **Decisión:** los rubros forman un árbol; las listas de precios son configuración de cada comercio (al primer uso se crean Minorista y Mayorista, y se pueden renombrar o agregar). Cada producto tiene costo sin IVA, alícuota (0 / 10,5 / 21 / 27) y un precio por lista con IVA incluido. Los productos y rubros no se borran: se archivan (regla 15) y toda alta/modificación/archivo queda en auditoría con el antes y el después.
+- **Dinero:** `numeric(14,2)` en la base; los cálculos de utilidad y precio se hacen en centavos enteros con redondeo half-up (`packages/dominio`).
+- **Búsqueda:** sin tildes, sin mayúsculas, sin importar el orden de las palabras y con singular/plural (`unaccent` + términos).
+- **Stock:** queda fuera de esta migración a propósito. Será un libro append-only propio (movimientos con referencia al original) y se define con el usuario antes de implementarlo.

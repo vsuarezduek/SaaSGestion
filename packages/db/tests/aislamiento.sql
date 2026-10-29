@@ -105,4 +105,40 @@ DO $$ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 
+-- 10) Catálogo: aislado por comercio y con integridad entre comercios.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO rubros (tenant_id, nombre) VALUES (app.tenant_id(), 'Almacén');
+SELECT set_config('test.rubroa', (SELECT id::text FROM rubros), false);
+INSERT INTO productos (tenant_id, codigo, nombre, rubro_id) SELECT app.tenant_id(), 'A1', 'Almendras', id FROM rubros;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM productos) <> 0 THEN RAISE EXCEPTION 'B ve productos de A'; END IF;
+  IF (SELECT count(*) FROM rubros) <> 0 THEN RAISE EXCEPTION 'B ve rubros de A'; END IF;
+  -- El mismo código en otro comercio está permitido.
+  INSERT INTO productos (tenant_id, codigo, nombre) VALUES (app.tenant_id(), 'A1', 'Otra cosa');
+  -- Un producto de B no puede colgar de un rubro de A.
+  BEGIN
+    INSERT INTO productos (tenant_id, codigo, nombre, rubro_id)
+      SELECT app.tenant_id(), 'B2', 'Intruso', NULL;
+    UPDATE productos SET rubro_id = (SELECT current_setting('test.rubroa')::uuid) WHERE codigo = 'B2';
+    RAISE EXCEPTION 'un producto de B quedó dentro de un rubro de A';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+END $$;
+-- Dos productos con el mismo código (sin importar mayúsculas) en un comercio: rechazado.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  BEGIN
+    INSERT INTO productos (tenant_id, codigo, nombre) VALUES (app.tenant_id(), 'a1', 'Duplicado');
+    RAISE EXCEPTION 'aceptó un código repetido';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO productos (tenant_id, codigo, nombre, costo) VALUES (app.tenant_id(), 'N1', 'Costo negativo', -1);
+    RAISE EXCEPTION 'aceptó un costo negativo';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO productos (tenant_id, codigo, nombre, iva) VALUES (app.tenant_id(), 'N2', 'IVA raro', 5);
+    RAISE EXCEPTION 'aceptó un IVA inválido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

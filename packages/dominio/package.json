@@ -1,0 +1,1 @@
+{ "name": "@saasgestion/dominio", "private": true, "type": "module", "main": "src/index.ts" }
