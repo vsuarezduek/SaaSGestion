@@ -229,4 +229,64 @@ DO $$ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 END $$;
 
+-- 13) Cajas: aisladas, de solo agregar y bloqueadas cuando están cerradas.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO cajas (tenant_id, nombre) VALUES (app.tenant_id(), 'Efectivo');
+SELECT set_config('test.caja_a', (SELECT id::text FROM cajas), false);
+DO $$ BEGIN
+  -- Caja sin turno abierto: rechaza movimientos.
+  BEGIN
+    INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe)
+      VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, NULL, 'ingreso', 100);
+    RAISE EXCEPTION 'aceptó un movimiento sin turno';
+  EXCEPTION WHEN restrict_violation OR check_violation THEN NULL; END;
+  INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada)
+    VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, 0, 500);
+  PERFORM set_config('test.turno_a', (SELECT id::text FROM caja_turnos), false);
+  -- Dos turnos abiertos en la misma caja: rechazado.
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada)
+      VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, 0, 0);
+    RAISE EXCEPTION 'aceptó dos turnos abiertos';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe)
+    VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, current_setting('test.turno_a')::uuid, 'ingreso', 1000.50);
+  PERFORM set_config('test.cmov_a', (SELECT id::text FROM caja_movimientos), false);
+  BEGIN UPDATE caja_movimientos SET importe = 1; RAISE EXCEPTION 'permitió modificar caja';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM caja_movimientos; RAISE EXCEPTION 'permitió borrar caja';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  -- Cerrar el turno.
+  UPDATE caja_turnos SET cerrado_en = now(), cierre_esperado = 1000.50, cierre_contado = 1000.50 WHERE id = current_setting('test.turno_a')::uuid;
+  -- Caja cerrada: rechaza movimientos nuevos, pero admite la anulación.
+  BEGIN
+    INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe)
+      VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, current_setting('test.turno_a')::uuid, 'ingreso', 5);
+    RAISE EXCEPTION 'aceptó un movimiento en caja cerrada';
+  EXCEPTION WHEN restrict_violation THEN NULL; END;
+  INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, revierte_id)
+    VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, NULL, 'reversion', -1000.50, current_setting('test.cmov_a')::bigint);
+  BEGIN
+    INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, revierte_id)
+      VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, NULL, 'reversion', -1000.50, current_setting('test.cmov_a')::bigint);
+    RAISE EXCEPTION 'aceptó anular dos veces';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  -- Un turno cerrado no se toca ni se borra.
+  BEGIN UPDATE caja_turnos SET cierre_contado = 1; RAISE EXCEPTION 'permitió tocar un turno cerrado';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM caja_turnos; RAISE EXCEPTION 'permitió borrar un turno';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  IF (SELECT sum(importe) FROM caja_movimientos) <> 0 THEN RAISE EXCEPTION 'el saldo de la caja no volvió a cero'; END IF;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM cajas) + (SELECT count(*) FROM caja_turnos) + (SELECT count(*) FROM caja_movimientos) <> 0 THEN
+    RAISE EXCEPTION 'B ve cajas de A'; END IF;
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada)
+      VALUES (app.tenant_id(), current_setting('test.caja_a')::uuid, 0, 0);
+    RAISE EXCEPTION 'B abrió una caja de A';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos
