@@ -131,6 +131,13 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
     const previa = await c.query<{ id: string; numero: number; total: string; comision: string }>('SELECT id, numero, total::text, comision::text FROM ventas WHERE clave = $1', [d.clave]);
     if (previa.rows[0]) return { ...previa.rows[0], avisosStock: [], repetida: true };
 
+    // Si sale de una venta abierta, se bloquea para que dos personas no la cierren a la vez.
+    if (d.abiertaId) {
+      const ab = await c.query<{ estado: string }>('SELECT estado FROM ventas_abiertas WHERE id = $1 FOR UPDATE', [d.abiertaId]);
+      if (!ab.rows[0]) throw new ErrorDeUsuario('La venta abierta no existe');
+      if (ab.rows[0].estado !== 'abierta') throw new ErrorDeUsuario('Esa venta abierta ya fue cerrada o descartada por otra persona');
+    }
+
     const cli = await c.query<{ activo: boolean; es_cf: boolean; cc: boolean | null }>(
       `SELECT c.activo, c.es_consumidor_final AS es_cf, k.cuenta_corriente AS cc FROM clientes c
          LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id WHERE c.id = $1`, [d.clienteId]);
@@ -192,6 +199,9 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
        deCentavos(calc.total), deCentavos(calc.ivaIncluido), d.cobro.tipo === 'cuenta_corriente', medio?.id ?? null, cajaDestino?.id ?? null, deCentavos(comision), d.nota, s.usuarioId],
     );
     const ventaId = vr.rows[0]!.id;
+    if (d.abiertaId) {
+      await c.query(`UPDATE ventas_abiertas SET estado = 'cerrada', venta_id = $2, cerrada_en = now(), modificada_por = $3, modificado_en = now() WHERE id = $1`, [d.abiertaId, ventaId, s.usuarioId]);
+    }
 
     for (const [i, r] of lineas.entries()) {
       const k = calc.renglones[i]!;

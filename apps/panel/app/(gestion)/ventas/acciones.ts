@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
+import { ConflictoDeVersion, descartarAbierta, guardarAbierta } from '../../../lib/ventasAbiertas.ts';
 import {
   anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago,
   type ClienteParaVenta, type ProductoParaVenta,
@@ -53,5 +54,29 @@ export async function anularVentaAccion(id: string, motivo: string): Promise<{ e
     throw e;
   }
   for (const r of ['/ventas', '/cajas', '/productos', '/clientes']) revalidatePath(r, 'layout');
+  return {};
+}
+
+export async function guardarAbiertaAccion(id: string | null, version: number, datos: unknown): Promise<{ id?: string; version?: number; error?: string; conflicto?: boolean }> {
+  const s = await sesionObligatoria();
+  try {
+    const r = await guardarAbierta(s, id, version, datos);
+    return { id: r.id, version: r.version };
+  } catch (e) {
+    if (e instanceof ConflictoDeVersion) return { error: e.message, conflicto: true };
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function descartarAbiertaAccion(id: string): Promise<{ error?: string }> {
+  const s = await sesionObligatoria();
+  try {
+    await descartarAbierta(s, id);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  revalidatePath('/ventas', 'layout');
   return {};
 }

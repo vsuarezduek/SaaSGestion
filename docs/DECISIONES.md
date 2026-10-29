@@ -91,3 +91,10 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Anulación:** igual que las ventas (D-014): motivo obligatorio y movimientos inversos que referencian al original; funciona con la caja cerrada. Los movimientos que vienen de una venta o un recibo no se revierten a mano en la cuenta corriente: se anula el documento.
 - **Historial:** cada movimiento de la cuenta corriente muestra el saldo que quedó después de él.
 - **Pendiente:** órdenes de pago a proveedores (espejo de esto con Compras), nota de crédito/devolución, ventas abiertas y pedidos.
+
+## D-016 · Ventas abiertas compartidas
+- **Estado:** Aceptada para la etapa 1 (segunda entrega de Ventas, parte 4).
+- **Decisión:** mientras se carga una venta, apenas hay un producto se guarda sola como **venta abierta** (borrador). Todos los usuarios del comercio ven y pueden continuar, cerrar o descartar las de todos: si un turno termina sin cerrar, otro la retoma. Un borrador no es un libro contable: no mueve caja, stock ni cuenta corriente; eso ocurre recién al cerrarla, que crea la venta real (D-013) y deja el borrador en estado `cerrada` con el vínculo a la venta.
+- **Concurrencia:** el borrador tiene número de versión; si dos personas lo editan a la vez, la segunda recibe un aviso en vez de pisar a la primera. Al cerrar se bloquea el borrador, así que dos personas no pueden cerrar la misma venta abierta.
+- **Descartar:** el borrador queda como `descartada` y en la auditoría; no se borra. Cerrado o descartado no se modifica.
+- **Pendiente:** pedidos de clientes (convertir en venta), mostrar las abiertas en la ficha del cliente, ventas abiertas de compras.

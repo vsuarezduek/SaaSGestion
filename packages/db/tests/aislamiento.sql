@@ -363,4 +363,23 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM recibos) <> 0 THEN RAISE EXCEPTION 'B ve recibos de A'; END IF;
 END $$;
 
+-- 16) Ventas abiertas: aisladas, no se borran y una vez cerradas o descartadas no se tocan.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO ventas_abiertas (tenant_id, cliente_id, datos, renglones, total)
+  SELECT app.tenant_id(), id, '{}'::jsonb, 1, 100 FROM clientes WHERE nombre = 'Cliente venta';
+DO $$ BEGIN
+  UPDATE ventas_abiertas SET version = version + 1, total = 200;          -- abierta: se puede editar
+  BEGIN DELETE FROM ventas_abiertas; RAISE EXCEPTION 'permitió borrar una venta abierta';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE ventas_abiertas SET estado = 'cerrada'; RAISE EXCEPTION 'permitió cerrar sin venta';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  UPDATE ventas_abiertas SET estado = 'descartada';
+  BEGIN UPDATE ventas_abiertas SET total = 1; RAISE EXCEPTION 'permitió tocar una venta abierta descartada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM ventas_abiertas) <> 0 THEN RAISE EXCEPTION 'B ve ventas abiertas de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

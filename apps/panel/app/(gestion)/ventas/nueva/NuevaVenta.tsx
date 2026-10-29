@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
 import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, formatearCantidad, formatearPesos, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
-import { buscarClientesAccion, buscarProductosAccion, cerrarVentaAccion } from '../acciones.ts';
+import type { Borrador } from '../../../../lib/validacion.ts';
+import { buscarClientesAccion, buscarProductosAccion, cerrarVentaAccion, descartarAbiertaAccion, guardarAbiertaAccion } from '../acciones.ts';
 
 interface Cliente { id: string; nombre: string; saldo: string; listaId: string | null; descuento: number; cuentaCorriente: boolean; esConsumidorFinal: boolean }
 interface Producto { id: string; nombre: string; codigo: string | null; unidad: string; precio: string; iva: number; stock: string }
@@ -13,33 +14,36 @@ interface Props {
   medios: { id: string; nombre: string; comisionPct: number; ivaComision: number; cajaIds: string[] }[];
   cajas: { id: string; nombre: string }[];
   clienteInicial: Cliente;
+  /** Venta abierta que se está retomando (si la hay). */
+  abierta?: { id: string; version: number; datos: Borrador } | null;
 }
 
 const COMPROBANTES: [string, string][] = [['remito', 'Remito'], ['factura_b', 'Factura B'], ['factura_a', 'Factura A'], ['sin_comprobante', 'Sin comprobante']];
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Props) {
+export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abierta }: Props) {
+  const ini = abierta?.datos;
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma venta no se cierra dos veces
   const [cliente, setCliente] = useState<Cliente>(clienteInicial);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
-  const [comprobante, setComprobante] = useState('remito');
-  const [nroComprobante, setNroComprobante] = useState('');
-  const [listaId, setListaId] = useState(clienteInicial.listaId ?? listas[0]?.id ?? '');
-  const [fecha, setFecha] = useState('');
+  const [comprobante, setComprobante] = useState(ini?.comprobante ?? 'remito');
+  const [nroComprobante, setNroComprobante] = useState(ini?.nroComprobante ?? '');
+  const [listaId, setListaId] = useState(ini?.listaId ?? clienteInicial.listaId ?? listas[0]?.id ?? '');
+  const [fecha, setFecha] = useState(ini?.fecha ?? '');
   // Un solo descuento: por porcentaje o por el total final al que se quiere llegar.
-  const [modoDesc, setModoDesc] = useState<'pct' | 'total'>('pct');
-  const [descTotal, setDescTotal] = useState(String(clienteInicial.descuento || 0));
-  const [totalFinal, setTotalFinal] = useState('');
-  const [renglones, setRenglones] = useState<Renglon[]>([]);
+  const [modoDesc, setModoDesc] = useState<'pct' | 'total'>(ini?.modoDesc ?? 'pct');
+  const [descTotal, setDescTotal] = useState(ini?.descTotal ?? String(clienteInicial.descuento || 0));
+  const [totalFinal, setTotalFinal] = useState(ini?.totalFinal ?? '');
+  const [renglones, setRenglones] = useState<Renglon[]>(() => (ini?.renglones ?? []).map((r) => ({ clave: ++contador, ...r })));
   const [busquedaProd, setBusquedaProd] = useState('');
   const [resultadosProd, setResultadosProd] = useState<Producto[]>([]);
-  const [cobroTipo, setCobroTipo] = useState<'caja' | 'cuenta_corriente'>('caja');
-  const [medioId, setMedioId] = useState('');
-  const [cajaId, setCajaId] = useState('');
-  const [nota, setNota] = useState('');
+  const [cobroTipo, setCobroTipo] = useState<'caja' | 'cuenta_corriente'>(ini?.cobroTipo ?? 'caja');
+  const [medioId, setMedioId] = useState(ini?.medioId ?? '');
+  const [cajaId, setCajaId] = useState(ini?.cajaId ?? '');
+  const [nota, setNota] = useState(ini?.nota ?? '');
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const refs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -73,6 +77,66 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
     if (modoDesc === 'pct') { setTotalFinal(calculo.ok ? deCentavos(calculo.v.total) : ''); setModoDesc('total'); }
     else { setDescTotal(String(pctEquivalente || 0)); setModoDesc('pct'); }
   };
+
+  // ───────── Guardado automático (venta abierta) ─────────
+  // Apenas hay un producto cargado, la venta queda guardada como abierta: cualquier usuario puede retomarla.
+  const [abiertaId, setAbiertaId] = useState<string | null>(abierta?.id ?? null);
+  const abiertaRef = useRef<string | null>(abierta?.id ?? null);
+  const versionRef = useRef(abierta?.version ?? 0);
+  const detenido = useRef(false);
+  const cola = useRef<Promise<unknown>>(Promise.resolve());
+  const [guardado, setGuardado] = useState<string>(abierta ? 'Venta abierta recuperada' : '');
+  const borrador: Borrador = {
+    clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, modoDesc, descTotal, totalFinal, cobroTipo, medioId, cajaId, nota,
+    total: calculo.ok ? deCentavos(calculo.v.total) : '0',
+    renglones: renglones.map((r) => ({ productoId: r.productoId, descripcion: r.descripcion, cantidad: r.cantidad, precio: r.precio, descuentoPct: r.descuentoPct, iva: r.iva, stock: r.stock })),
+  };
+  const borradorRef = useRef(borrador);
+  borradorRef.current = borrador;
+  const guardarAhora = (): Promise<boolean> => {
+    const tarea = cola.current.then(async () => {
+      if (detenido.current || borradorRef.current.renglones.length === 0) return false;
+      setGuardado('Guardando…');
+      const r = await guardarAbiertaAccion(abiertaRef.current, versionRef.current, borradorRef.current);
+      if (r.error) {
+        if (r.conflicto) detenido.current = true;
+        setGuardado('');
+        setMsg(r.error);
+        return false;
+      }
+      abiertaRef.current = r.id!;
+      versionRef.current = r.version!;
+      setAbiertaId(r.id!);
+      if (typeof window !== 'undefined') window.history.replaceState(null, '', `/ventas/nueva?abierta=${r.id}`);
+      setGuardado(`Guardada automáticamente · ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+      return true;
+    });
+    cola.current = tarea.catch(() => false);
+    return tarea;
+  };
+  const huella = JSON.stringify(borrador);
+  const huellaGuardada = useRef(huella); // lo que se cargó al abrir ya está guardado: no se vuelve a guardar sin cambios
+  useEffect(() => {
+    if (renglones.length === 0 || detenido.current || huella === huellaGuardada.current) return;
+    const t = setTimeout(() => { huellaGuardada.current = huella; void guardarAhora(); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [huella]);
+  const dejarAbierta = () => iniciar(async () => {
+    setMsg(null);
+    if (renglones.length === 0) { setMsg('Cargá al menos un producto para dejar la venta abierta'); return; }
+    if (await guardarAhora()) router.push('/ventas');
+  });
+  const descartar = () => iniciar(async () => {
+    setMsg(null);
+    detenido.current = true;
+    await cola.current;
+    if (abiertaRef.current) {
+      const r = await descartarAbiertaAccion(abiertaRef.current);
+      if (r.error) { detenido.current = false; setMsg(r.error); return; }
+    }
+    router.push('/ventas');
+  });
 
   const buscarCliente = async (q: string) => {
     setBusquedaCliente(q);
@@ -114,12 +178,14 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
   const cerrar = () =>
     iniciar(async () => {
       setMsg(null);
+      detenido.current = true;          // ya no se guarda como borrador: se está cerrando
+      await cola.current;               // si había un guardado en curso, que termine antes
       const r = await cerrarVentaAccion({
-        clave, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: modoDesc === 'pct' ? pctNum(descTotal) : 0, totalFinal: modoDesc === 'total' && totalFinal.trim() !== '' ? totalFinal : null, nota,
+        clave, abiertaId: abiertaRef.current, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: modoDesc === 'pct' ? pctNum(descTotal) : 0, totalFinal: modoDesc === 'total' && totalFinal.trim() !== '' ? totalFinal : null, nota,
         renglones: renglones.map((x) => ({ productoId: x.productoId, descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio, descuentoPct: pctNum(x.descuentoPct), iva: x.iva })),
         cobro: cobroTipo === 'cuenta_corriente' ? { tipo: 'cuenta_corriente' } : { tipo: 'caja', medioPagoId: medioId, cajaId },
       });
-      if (r.error) { setMsg(r.error); return; }
+      if (r.error) { detenido.current = false; setMsg(r.error); return; }
       router.push(`/ventas/${r.id}${r.avisosStock?.length ? `?avisos=${encodeURIComponent(r.avisosStock.join(', '))}` : ''}`);
     });
 
@@ -249,7 +315,10 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial }: Pr
           )}
         </div>
         <div style={{ marginTop: 14 }}>
-          <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Cerrando…' : 'Cerrar venta'}</button>
+          <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Cerrando…' : 'Cerrar venta'}</button>{' '}
+          <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>{' '}
+          {abiertaId && <button type="button" style={botonSecundario} disabled={pend} onClick={() => { if (window.confirm('¿Descartar esta venta abierta? No se puede recuperar.')) descartar(); }}>Descartar</button>}
+          {guardado && <span style={{ marginLeft: 10, color: '#5c6d66', fontSize: 13 }}>{guardado}</span>}
         </div>
       </div>
     </>
