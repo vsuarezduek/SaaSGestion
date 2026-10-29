@@ -90,7 +90,7 @@ test('descuentos por renglón y total, e IVA incluido en facturas', async () => 
   assert.equal(v?.nroComprobante, '0001-00000042');
   assert.equal(v?.renglones[0]?.iva, '21.0');
   assert.equal(v?.renglones[1]?.iva, '10.5'); // el IVA lo da el producto, no el cliente
-  assert.equal(v?.ivaIncluido, '296.78'.replace('296.78', (296.78 + 45.7).toFixed(2))); // 1710 × 21/121 + 475 × 10,5/110,5
+  assert.equal(v?.ivaIncluido, '341.92'); // 1710 × 21/121 = 296,78  +  475 × 10,5/110,5 = 45,14
 });
 
 test('el medio con comisión deja el cobro y la comisión como movimientos aparte', async () => {
@@ -117,7 +117,7 @@ test('cuenta corriente: suma al saldo del cliente, no toca la caja y exige categ
 
 test('vender sin stock se permite, deja el stock negativo y avisa', async () => {
   const r = await venta(A, { clienteId: consumidor, renglones: [renglon(te, '3', { precio: '500' })] });
-  assert.equal(await stockDe(A, te), '-3.000');
+  assert.equal(await stockDe(A, te), '-4.000'); // ya se había vendido 1 en la factura de arriba
   assert.deepEqual(r.avisosStock, ['Té verde']);
 });
 
