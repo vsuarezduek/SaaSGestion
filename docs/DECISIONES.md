@@ -77,3 +77,10 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Medios de pago:** configurables por comercio, cada uno habilita solo ciertas cajas. La caja tiene que estar abierta.
 - **Stock:** vender sin stock se permite; la venta avisa qué productos quedaron en negativo.
 - **Pendiente (segunda entrega):** anular y editar ventas cerradas (movimientos inversos), ventas abiertas guardadas automáticamente, pedidos, nota de crédito y devolución, recibos de cuenta corriente, PDF y mail del comprobante, facturación ARCA.
+
+## D-014 · Ventas: anulación con movimientos inversos
+- **Estado:** Aceptada para la etapa 1 (segunda entrega de Ventas, parte 1).
+- **Decisión:** una venta cerrada no se edita ni se borra; se anula con motivo obligatorio. La anulación genera, en una sola transacción, la reversión de cada movimiento que dejó la venta (cobro y comisión en caja, stock, cuenta corriente), cada una referenciando a su original, y marca la venta como anulada (quién, cuándo, por qué). Anular dos veces es imposible (estado y unicidad de reversiones).
+- **Caja cerrada:** se puede anular igual; la reversión queda en el libro de la caja sin turno (D-012).
+- **Corregir una venta:** se anula y se carga la correcta (la edición directa no existe en el modelo real).
+- **Pendiente:** recibos de cuenta corriente, nota de crédito/devolución, ventas abiertas y pedidos.

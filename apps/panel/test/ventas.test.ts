@@ -11,7 +11,7 @@ import { ErrorDePermiso } from '../lib/permisos.ts';
 import { guardarCategoria, guardarCliente, obtenerCliente } from '../lib/personas.ts';
 import { registrarStock } from '../lib/stock.ts';
 import {
-  buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago, listarVentas, obtenerVenta,
+  anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago, listarVentas, obtenerVenta,
 } from '../lib/ventas.ts';
 
 const sufijo = Date.now().toString(36);
@@ -227,4 +227,63 @@ test('cerrar una venta queda en la auditoría', async () => {
   const r = await venta(A, { clienteId: consumidor });
   const a = await conTenant(A.tenantId, (c) => c.query("SELECT accion FROM auditoria WHERE entidad = 'venta' AND entidad_id = $1", [r.id]));
   assert.equal(a.rows[0].accion, 'cerrar');
+});
+
+test('anular una venta en caja devuelve el stock y saca el cobro y la comisión, sin borrar nada', async () => {
+  const p = await prod(A, 'Yerba', '1000', 21);
+  await registrarStock(A, p, { tipo: 'saldo_inicial', cantidad: '5', concepto: '' });
+  const cajaAntes = Number(await saldoCaja(A, banco));
+  const r = await venta(A, { clienteId: consumidor, renglones: [renglon(p, '2')], cobro: { tipo: 'caja', medioPagoId: medioTarjeta, cajaId: banco } });
+  assert.equal(await stockDe(A, p), '3.000');
+  await assert.rejects(anularVenta(A, r.id, ''), ErrorDeUsuario); // exige motivo
+  await anularVenta(A, r.id, 'Error de carga');
+  assert.equal(await stockDe(A, p), '5.000');
+  assert.equal(Number(await saldoCaja(A, banco)), cajaAntes);
+  const v = await obtenerVenta(A, r.id);
+  assert.equal(v?.estado, 'anulada');
+  assert.equal(v?.motivoAnulacion, 'Error de carga');
+  // Los movimientos originales siguen ahí, cada reversión apunta a su original.
+  const caja = await conTenant(A.tenantId, (c) => c.query("SELECT tipo, importe::text, revierte_id FROM caja_movimientos WHERE venta_id = $1 ORDER BY id", [r.id]));
+  assert.deepEqual(caja.rows.map((x) => [x.tipo, x.importe, x.revierte_id !== null]), [['cobro_venta', '2000.00', false], ['comision_venta', '-72.60', false], ['reversion', '-2000.00', true], ['reversion', '72.60', true]]);
+  const st = await conTenant(A.tenantId, (c) => c.query("SELECT tipo, cantidad::text FROM stock_movimientos WHERE venta_id = $1 ORDER BY id", [r.id]));
+  assert.deepEqual(st.rows.map((x) => [x.tipo, x.cantidad]), [['venta', '-2.000'], ['reversion', '2.000']]);
+  const a = await conTenant(A.tenantId, (c) => c.query("SELECT accion FROM auditoria WHERE entidad = 'venta' AND entidad_id = $1 ORDER BY id", [r.id]));
+  assert.deepEqual(a.rows.map((x) => x.accion), ['cerrar', 'anular']);
+});
+
+test('no se puede anular dos veces ni anular lo que no existe', async () => {
+  const r = await venta(A, { clienteId: consumidor });
+  await anularVenta(A, r.id, 'Duplicada');
+  await assert.rejects(anularVenta(A, r.id, 'Otra vez'), ErrorDeUsuario);
+  await assert.rejects(anularVenta(A, randomUUID(), 'No existe'), ErrorDeUsuario);
+  await assert.rejects(anularVenta(A, 'no-es-uuid', 'Mal'), ErrorDeUsuario);
+  const movs = await conTenant(A.tenantId, (c) => c.query("SELECT count(*)::int AS n FROM caja_movimientos WHERE venta_id = $1", [r.id]));
+  assert.equal(movs.rows[0].n, 2); // cobro + una sola reversión
+});
+
+test('anular una venta a cuenta corriente baja la deuda del cliente', async () => {
+  const antes = (await obtenerCliente(A, clienteCC))?.saldo;
+  const r = await venta(A, { clienteId: clienteCC, renglones: [renglon(cafe, '1')], cobro: { tipo: 'cuenta_corriente' } });
+  assert.equal(Number((await obtenerCliente(A, clienteCC))?.saldo) - Number(antes), 1000);
+  await anularVenta(A, r.id, 'Cliente se arrepintió');
+  assert.equal((await obtenerCliente(A, clienteCC))?.saldo, antes);
+});
+
+test('se puede anular una venta aunque la caja ya esté cerrada', async () => {
+  const c = await guardarCaja(A, null, { nombre: 'Anular tras cierre', tipo: 'efectivo', impuestoTransaccion: 0 });
+  const m = await guardarMedioDePago(A, null, { nombre: 'Efectivo 3', comisionPct: 0, ivaComision: 21, cajaIds: [c] });
+  await abrirCaja(A, c, { contado: '0' });
+  const r = await venta(A, { clienteId: consumidor, cobro: { tipo: 'caja', medioPagoId: m, cajaId: c } });
+  await cerrarCaja(A, c, { contado: '1000', cambioDejado: '1000', destinoId: null });
+  await anularVenta(A, r.id, 'Devolución del cliente');
+  assert.equal((await obtenerVenta(A, r.id))?.estado, 'anulada');
+  assert.equal(await saldoCaja(A, c), '0.00');
+});
+
+test('un comercio no puede anular ventas de otro y la base no deja tocar una venta cerrada', async () => {
+  const r = await venta(A, { clienteId: consumidor });
+  await assert.rejects(anularVenta(B, r.id, 'Intento ajeno'), ErrorDeUsuario);
+  assert.equal((await obtenerVenta(A, r.id))?.estado, 'cerrada');
+  // La base no deja anular tocando la venta a mano: una cerrada solo cambia de estado.
+  await assert.rejects(conTenant(A.tenantId, (c) => c.query("UPDATE ventas SET total = 1 WHERE id = $1", [r.id])));
 });
