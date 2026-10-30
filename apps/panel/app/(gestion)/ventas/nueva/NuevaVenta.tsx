@@ -44,6 +44,8 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const [medioId, setMedioId] = useState(ini?.medioId ?? '');
   const [cajaId, setCajaId] = useState(ini?.cajaId ?? '');
   const [nota, setNota] = useState(ini?.nota ?? '');
+  const [esPedido, setEsPedido] = useState(ini?.pedido ?? false);
+  const [entrega, setEntrega] = useState(ini?.entrega ?? '');
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const refs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -87,7 +89,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const cola = useRef<Promise<unknown>>(Promise.resolve());
   const [guardado, setGuardado] = useState<string>(abierta ? 'Venta abierta recuperada' : '');
   const borrador: Borrador = {
-    clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, modoDesc, descTotal, totalFinal, cobroTipo, medioId, cajaId, nota,
+    clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, modoDesc, descTotal, totalFinal, cobroTipo, medioId, cajaId, nota, pedido: esPedido, entrega: esPedido ? entrega : '',
     total: calculo.ok ? deCentavos(calculo.v.total) : '0',
     renglones: renglones.map((r) => ({ productoId: r.productoId, descripcion: r.descripcion, cantidad: r.cantidad, precio: r.precio, descuentoPct: r.descuentoPct, iva: r.iva, stock: r.stock })),
   };
@@ -125,6 +127,14 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const dejarAbierta = () => iniciar(async () => {
     setMsg(null);
     if (renglones.length === 0) { setMsg('Cargá al menos un producto para dejar la venta abierta'); return; }
+    if (await guardarAhora()) router.push('/ventas');
+  });
+  // Pedido: la venta queda guardada para entregar más adelante (no mueve caja ni stock hasta convertirla en venta).
+  const guardarPedido = () => iniciar(async () => {
+    setMsg(null);
+    if (renglones.length === 0) { setMsg('Cargá al menos un producto para guardar el pedido'); return; }
+    borradorRef.current = { ...borradorRef.current, pedido: true, entrega };
+    setEsPedido(true);
     if (await guardarAhora()) router.push('/ventas');
   });
   const descartar = () => iniciar(async () => {
@@ -314,10 +324,14 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
             </>
           )}
         </div>
+        <label style={{ ...etiqueta, marginTop: 10, maxWidth: 260 }}>Fecha de entrega (solo si es un pedido)
+          <input type="date" style={campo} value={entrega} onChange={(e) => setEntrega(e.target.value)} />
+        </label>
         <div style={{ marginTop: 14 }}>
           <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Cerrando…' : 'Cerrar venta'}</button>{' '}
           <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>{' '}
-          {abiertaId && <button type="button" style={botonSecundario} disabled={pend} onClick={() => { if (window.confirm('¿Descartar esta venta abierta? No se puede recuperar.')) descartar(); }}>Descartar</button>}
+          <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={guardarPedido}>Guardar como pedido</button>{' '}
+          {abiertaId && <button type="button" style={botonSecundario} disabled={pend} onClick={() => { if (window.confirm(esPedido ? '¿Cancelar este pedido? No se puede recuperar.' : '¿Descartar esta venta abierta? No se puede recuperar.')) descartar(); }}>Descartar</button>}
           {guardado && <span style={{ marginLeft: 10, color: '#5c6d66', fontSize: 13 }}>{guardado}</span>}
         </div>
       </div>

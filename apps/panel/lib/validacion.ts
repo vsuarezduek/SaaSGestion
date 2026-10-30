@@ -264,6 +264,8 @@ export const esquemaBorrador = z.object({
   cajaId: corto(40),
   nota: corto(500),
   total: corto(20),                                    // estimado, para mostrar en la lista
+  pedido: z.boolean().default(false),                  // true = pedido de cliente (se entrega más adelante)
+  entrega: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Fecha de entrega inválida').default(''),
   renglones: z
     .array(z.object({
       productoId: z.string().uuid().nullable(), descripcion: corto(200), cantidad: corto(20), precio: corto(20), descuentoPct: corto(20),

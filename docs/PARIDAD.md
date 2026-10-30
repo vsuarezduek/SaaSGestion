@@ -53,12 +53,12 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Actualizar precios | ✅ | |
 | Listado y detalle de venta | ✅ | |
 | Anular venta (movimientos inversos, con motivo) | ✅ | En el prototipo "Eliminar" |
-| **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ⬜ | v43–v44. Hoy el sistema real tiene solo "descuento total %" |
+| **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ✅ | v43–v44. Alternador % / $ total, con el ajuste en ambas unidades (D-013 ampliada) |
 | Enter en precio/descuento salta a buscar otro producto | ⬜ | v42 |
 | Productos nuevos arriba y cursor en cantidad | 🟡 | Verificar |
 | Editar una venta cerrada | ⬜ | En el sistema real: anular + cargar la corregida precargada |
-| Ventas abiertas con guardado automático, "+ Nueva venta" | ⬜ | |
-| Pedidos de clientes (guardar como pedido, convertir en venta) | ⬜ | |
+| Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
+| Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
 | Nota de crédito y devolución | ⬜ | |
 | PDF y email del comprobante (con IVA detallado) | ⬜ | |
 | Facturación ARCA | ⬜ | Etapa 3 |
@@ -101,7 +101,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Costos fijos | ⬜ | |
 
 ## Orden sugerido
-1. **Ventas, segunda entrega:** nota de crédito/devolución, ventas abiertas con guardado automático, pedidos, descuento único, Enter entre campos, PDF/email, "editar" por anular y recargar.
+1. **Ventas, segunda entrega:** nota de crédito/devolución, PDF/email, "editar" por anular y recargar.
 2. **Compras** y **órdenes de pago** (espejo de ventas y recibos).
 3. **Productos:** datos extras, edición en la misma página, historial, masiva, CSV, listas, informe filtrado.
 4. **Recetas, elaboración y costos fijos.**
