@@ -14,7 +14,7 @@ export default async function Nueva({ searchParams }: { searchParams: Promise<{ 
   const [listas, medios, cajas, cf] = await Promise.all([listasDePrecios(s), listarMediosDePago(s), listarCajas(s), buscarClientesParaVenta(s, '')]);
   return (
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ fontFamily: 'Georgia, serif' }}>{abierta ? 'Venta abierta' : 'Nueva venta'}</h1>
+      <h1 style={{ fontFamily: 'Georgia, serif' }}>{abierta ? (abierta.datos.pedido ? 'Pedido de cliente' : 'Venta abierta') : 'Nueva venta'}</h1>
       {abiertaId && !abierta && <div style={{ background: '#fbeae0', color: '#b4571a', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>Esa venta abierta ya no está disponible (se cerró o se descartó). Podés cargar una nueva.</div>}
       <NuevaVenta
         key={abierta?.id ?? 'nueva'}

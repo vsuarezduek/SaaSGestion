@@ -97,4 +97,10 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Decisión:** mientras se carga una venta, apenas hay un producto se guarda sola como **venta abierta** (borrador). Todos los usuarios del comercio ven y pueden continuar, cerrar o descartar las de todos: si un turno termina sin cerrar, otro la retoma. Un borrador no es un libro contable: no mueve caja, stock ni cuenta corriente; eso ocurre recién al cerrarla, que crea la venta real (D-013) y deja el borrador en estado `cerrada` con el vínculo a la venta.
 - **Concurrencia:** el borrador tiene número de versión; si dos personas lo editan a la vez, la segunda recibe un aviso en vez de pisar a la primera. Al cerrar se bloquea el borrador, así que dos personas no pueden cerrar la misma venta abierta.
 - **Descartar:** el borrador queda como `descartada` y en la auditoría; no se borra. Cerrado o descartado no se modifica.
-- **Pendiente:** pedidos de clientes (convertir en venta), mostrar las abiertas en la ficha del cliente, ventas abiertas de compras.
+- **Pendiente:** ventas abiertas de compras.
+
+## D-017 · Pedidos de clientes
+- **Estado:** Aceptada para la etapa 1 (segunda entrega de Ventas, parte 5).
+- **Decisión:** un pedido es una venta abierta marcada como pedido (`es_pedido`) con fecha de entrega opcional. Se guarda desde la pantalla de venta con "Guardar como pedido" y lo ven todos los usuarios del comercio en Ventas y en la ficha del cliente (junto con sus ventas abiertas). Se ordena por entrega más próxima, los sin fecha al final; los vencidos se marcan.
+- **Convertir:** "Pasar a venta / editar" abre el pedido en la pantalla de venta; al cerrarla nace la venta real (D-013) y el pedido queda `cerrado` con el vínculo. Cancelar = descartar (queda en auditoría, no se borra).
+- **Por qué reutilizar la tabla:** mismo ciclo de vida, misma concurrencia (versión) y mismo bloqueo al cerrar; no mueve caja, stock ni cuenta corriente hasta ser venta. La fecha de entrega solo se admite en pedidos (restricción en base).

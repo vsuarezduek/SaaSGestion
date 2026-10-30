@@ -7,7 +7,7 @@ import { abrirCaja, guardarCaja, obtenerCaja } from '../lib/cajas.ts';
 import { guardarProducto, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
 import { cerrarVenta, buscarClientesParaVenta, guardarMedioDePago, listarVentas } from '../lib/ventas.ts';
-import { ConflictoDeVersion, descartarAbierta, guardarAbierta, listarAbiertas, obtenerAbierta } from '../lib/ventasAbiertas.ts';
+import { ConflictoDeVersion, descartarAbierta, guardarAbierta, listarAbiertas, listarAbiertasDeCliente, listarPedidos, obtenerAbierta } from '../lib/ventasAbiertas.ts';
 
 const sufijo = Date.now().toString(36);
 let A: SesionActiva;   // un usuario
@@ -129,4 +129,37 @@ test('un comercio no ve ni toca las ventas abiertas de otro', async () => {
   await assert.rejects(descartarAbierta(B, a.id), ErrorDeUsuario);
   await assert.rejects(guardarAbierta(B, a.id, a.version, borrador()), ErrorDeUsuario);
   assert.ok(await obtenerAbierta(A, a.id));
+});
+
+test('pedido de cliente: se guarda con fecha de entrega, no figura como venta abierta y se convierte en venta', async () => {
+  const cajaAntes = Number((await obtenerCaja(A, efectivo))?.saldo);
+  const p = await guardarAbierta(A, null, 0, borrador({ pedido: true, entrega: '2030-05-20', nota: 'para el viernes' }));
+  assert.equal(Number((await obtenerCaja(A, efectivo))?.saldo), cajaAntes);       // un pedido no mueve caja
+  assert.ok(!(await listarAbiertas(A)).some((x) => x.id === p.id));
+  const fila = (await listarPedidos(A2)).find((x) => x.id === p.id)!;              // otro usuario lo ve
+  assert.equal(fila.entrega, '2030-05-20');
+  assert.equal(fila.nota, 'para el viernes');
+  assert.deepEqual(fila.items, ['2 × Café']);
+  assert.ok((await listarPedidos(A, consumidor)).some((x) => x.id === p.id));
+  assert.equal((await listarPedidos(A, randomUUID())).length, 0);
+  const r = await cerrarVenta(A2, cierre(p.id));                                    // se pasa a venta
+  assert.equal(Number((await obtenerCaja(A, efectivo))?.saldo) - cajaAntes, 2000);
+  assert.ok(!(await listarPedidos(A)).some((x) => x.id === p.id));
+  assert.ok(r.id);
+});
+
+test('pedidos: orden por entrega (sin fecha al final), cancelar y aislamiento entre comercios', async () => {
+  const sinFecha = await guardarAbierta(A, null, 0, borrador({ pedido: true }));
+  const tarde = await guardarAbierta(A, null, 0, borrador({ pedido: true, entrega: '2031-02-01' }));
+  const pronto = await guardarAbierta(A, null, 0, borrador({ pedido: true, entrega: '2031-01-01' }));
+  const ids = (await listarPedidos(A)).map((x) => x.id).filter((i) => [sinFecha.id, tarde.id, pronto.id].includes(i));
+  assert.deepEqual(ids, [pronto.id, tarde.id, sinFecha.id]);
+  assert.equal((await listarPedidos(B)).length, 0);
+  await descartarAbierta(A2, pronto.id);
+  assert.ok(!(await listarPedidos(A)).some((x) => x.id === pronto.id));
+  // Una venta abierta común ignora la fecha de entrega y aparece en la ficha del cliente.
+  const comun = await guardarAbierta(A, null, 0, borrador({ entrega: '2031-03-01' }));
+  assert.equal((await listarPedidos(A)).some((x) => x.id === comun.id), false);
+  assert.ok((await listarAbiertasDeCliente(A, consumidor)).some((x) => x.id === comun.id));
+  await assert.rejects(guardarAbierta(A, null, 0, borrador({ pedido: true, entrega: '20/05/2030' })), ErrorDeUsuario);
 });

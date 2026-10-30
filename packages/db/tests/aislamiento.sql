@@ -382,4 +382,21 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM ventas_abiertas) <> 0 THEN RAISE EXCEPTION 'B ve ventas abiertas de A'; END IF;
 END $$;
 
+-- 17) Pedidos de clientes: son ventas abiertas con fecha de entrega; la fecha solo vale para pedidos.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  BEGIN
+    INSERT INTO ventas_abiertas (tenant_id, cliente_id, datos, renglones, total, entrega)
+      SELECT app.tenant_id(), id, '{}'::jsonb, 1, 100, current_date FROM clientes WHERE nombre = 'Cliente venta';
+    RAISE EXCEPTION 'permitió fecha de entrega en una venta que no es pedido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO ventas_abiertas (tenant_id, cliente_id, datos, renglones, total, es_pedido, entrega)
+    SELECT app.tenant_id(), id, '{}'::jsonb, 1, 100, true, current_date FROM clientes WHERE nombre = 'Cliente venta';
+  IF (SELECT count(*) FROM ventas_abiertas WHERE es_pedido AND estado = 'abierta') <> 1 THEN RAISE EXCEPTION 'falta el pedido'; END IF;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM ventas_abiertas WHERE es_pedido) <> 0 THEN RAISE EXCEPTION 'B ve pedidos de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

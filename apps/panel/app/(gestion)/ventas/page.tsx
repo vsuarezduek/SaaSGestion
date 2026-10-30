@@ -3,7 +3,8 @@ import { listarVentas } from '../../../lib/ventas.ts';
 import { ETIQUETAS_COMPROBANTE as ETIQUETAS } from '../../../lib/etiquetas.ts';
 import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
-import { listarAbiertas } from '../../../lib/ventasAbiertas.ts';
+import ListaPedidos from './ListaPedidos.tsx';
+import { listarAbiertas, listarPedidos } from '../../../lib/ventasAbiertas.ts';
 import DescartarAbierta from './DescartarAbierta.tsx';
 import { aCentavos, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function Ventas({ searchParams }: { searchParams: Promise<{ q?: string; todas?: string }> }) {
   const p = await searchParams;
   const s = await sesionObligatoria();
-  const [ventas, abiertas] = await Promise.all([listarVentas(s, { q: p.q, limite: p.todas || p.q ? 100 : 10 }), listarAbiertas(s)]);
+  const [ventas, abiertas, pedidos] = await Promise.all([listarVentas(s, { q: p.q, limite: p.todas || p.q ? 100 : 10 }), listarAbiertas(s), listarPedidos(s)]);
   const hora = (d: Date) => d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const celda = { padding: '6px 8px', borderBottom: '1px solid #d3e6de', fontSize: 14, textAlign: 'left' as const };
   const puedeConfigurar = s.rol === 'administrador' || s.permisos.includes('ajustes');
@@ -29,6 +30,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
         <input name="q" defaultValue={p.q ?? ''} placeholder="Buscar por cliente, número o comprobante" style={{ ...campo, marginTop: 0 }} />
         <button type="submit" style={boton}>Buscar</button>
       </form>
+      <ListaPedidos pedidos={pedidos} />
       {abiertas.length > 0 && (
         <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0' }}>
           <b>Ventas abiertas ({abiertas.length})</b>

@@ -11,18 +11,43 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ConflictoDeVersion extends ErrorDeUsuario {}
 
-export interface FilaAbierta { id: string; cliente: string; renglones: number; total: string; creadaPor: string | null; modificadaPor: string | null; modificadoEn: Date; creadoEn: Date }
+export interface FilaAbierta { id: string; clienteId: string; cliente: string; renglones: number; total: string; creadaPor: string | null; modificadaPor: string | null; modificadoEn: Date; creadoEn: Date }
 
 export async function listarAbiertas(s: SesionActiva): Promise<FilaAbierta[]> {
   exigir(s, 'ventas');
   return conTenant(s.tenantId, async (c) => {
     const r = await c.query(
-      `SELECT a.id, cl.nombre AS cliente, a.renglones, a.total::text, uc.nombre AS creada_por, um.nombre AS modificada_por, a.modificado_en, a.creado_en
+      `SELECT a.id, a.cliente_id, cl.nombre AS cliente, a.renglones, a.total::text, uc.nombre AS creada_por, um.nombre AS modificada_por, a.modificado_en, a.creado_en
          FROM ventas_abiertas a JOIN clientes cl ON cl.id = a.cliente_id
          LEFT JOIN usuarios uc ON uc.id = a.creada_por LEFT JOIN usuarios um ON um.id = a.modificada_por
-        WHERE a.estado = 'abierta' ORDER BY a.modificado_en DESC LIMIT 100`);
-    return r.rows.map((f) => ({ id: f.id, cliente: f.cliente, renglones: f.renglones, total: f.total, creadaPor: f.creada_por, modificadaPor: f.modificada_por, modificadoEn: f.modificado_en, creadoEn: f.creado_en }));
+        WHERE a.estado = 'abierta' AND NOT a.es_pedido ORDER BY a.modificado_en DESC LIMIT 100`);
+    return r.rows.map((f) => ({ id: f.id, clienteId: f.cliente_id, cliente: f.cliente, renglones: f.renglones, total: f.total, creadaPor: f.creada_por, modificadaPor: f.modificada_por, modificadoEn: f.modificado_en, creadoEn: f.creado_en }));
   });
+}
+
+export interface FilaPedido { id: string; clienteId: string; cliente: string; renglones: number; total: string; entrega: string | null; nota: string; items: string[]; creadoPor: string | null; creadoEn: Date }
+
+const SELECT_PEDIDOS = `SELECT a.id, a.cliente_id, cl.nombre AS cliente, a.renglones, a.total::text, a.entrega::text AS entrega, COALESCE(a.datos->>'nota', '') AS nota,
+         (SELECT COALESCE(array_agg((r->>'cantidad') || ' × ' || COALESCE(NULLIF(r->>'descripcion', ''), 'Producto') ORDER BY ord), '{}'::text[])
+            FROM jsonb_array_elements(a.datos->'renglones') WITH ORDINALITY AS t(r, ord)) AS items,
+         uc.nombre AS creado_por, a.creado_en
+    FROM ventas_abiertas a JOIN clientes cl ON cl.id = a.cliente_id LEFT JOIN usuarios uc ON uc.id = a.creada_por
+   WHERE a.estado = 'abierta' AND a.es_pedido`;
+const aPedido = (f: Record<string, any>): FilaPedido => ({ id: f.id, clienteId: f.cliente_id, cliente: f.cliente, renglones: f.renglones, total: f.total, entrega: f.entrega, nota: f.nota, items: f.items, creadoPor: f.creado_por, creadoEn: f.creado_en }); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Pedidos pendientes de entrega, los de entrega más próxima primero (los sin fecha al final). Los ven todos los usuarios. */
+export async function listarPedidos(s: SesionActiva, clienteId?: string): Promise<FilaPedido[]> {
+  exigir(s, 'ventas');
+  if (clienteId !== undefined && !UUID.test(clienteId)) return [];
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query(`${SELECT_PEDIDOS}${clienteId ? ' AND a.cliente_id = $1' : ''} ORDER BY a.entrega NULLS LAST, a.creado_en LIMIT 200`, clienteId ? [clienteId] : []);
+    return r.rows.map(aPedido);
+  });
+}
+
+/** Ventas abiertas (no pedidos) de un cliente, para mostrarlas en su ficha. */
+export async function listarAbiertasDeCliente(s: SesionActiva, clienteId: string): Promise<FilaAbierta[]> {
+  return (await listarAbiertas(s)).filter((a) => a.clienteId === clienteId);
 }
 
 export interface VentaAbierta { id: string; version: number; datos: Borrador; cliente: ClienteParaVenta }
@@ -61,15 +86,15 @@ export async function guardarAbierta(s: SesionActiva, id: string | null, version
     try {
       if (!id) {
         const r = await c.query<{ id: string; version: number }>(
-          `INSERT INTO ventas_abiertas (tenant_id, cliente_id, datos, renglones, total, creada_por, modificada_por)
-           VALUES (app.tenant_id(), $1, $2::jsonb, $3, $4, $5, $5) RETURNING id, version`, [d.clienteId, JSON.stringify(d), d.renglones.length, total, s.usuarioId]);
+          `INSERT INTO ventas_abiertas (tenant_id, cliente_id, datos, renglones, total, creada_por, modificada_por, es_pedido, entrega)
+           VALUES (app.tenant_id(), $1, $2::jsonb, $3, $4, $5, $5, $6, $7) RETURNING id, version`, [d.clienteId, JSON.stringify(d), d.renglones.length, total, s.usuarioId, d.pedido, d.pedido && d.entrega ? d.entrega : null]);
         await auditar(c, s.usuarioId, 'abrir', 'venta_abierta', { cliente: d.clienteId, renglones: d.renglones.length }, { entidadId: r.rows[0]!.id });
         return r.rows[0]!;
       }
       if (!UUID.test(id)) throw new ErrorDeUsuario('La venta abierta no existe');
       const r = await c.query<{ id: string; version: number }>(
-        `UPDATE ventas_abiertas SET cliente_id = $2, datos = $3::jsonb, renglones = $4, total = $5, modificada_por = $6, modificado_en = now(), version = version + 1
-          WHERE id = $1 AND estado = 'abierta' AND version = $7 RETURNING id, version`, [id, d.clienteId, JSON.stringify(d), d.renglones.length, total, s.usuarioId, version]);
+        `UPDATE ventas_abiertas SET cliente_id = $2, datos = $3::jsonb, renglones = $4, total = $5, modificada_por = $6, modificado_en = now(), version = version + 1, es_pedido = $8, entrega = $9
+          WHERE id = $1 AND estado = 'abierta' AND version = $7 RETURNING id, version`, [id, d.clienteId, JSON.stringify(d), d.renglones.length, total, s.usuarioId, version, d.pedido, d.pedido && d.entrega ? d.entrega : null]);
       if (r.rows[0]) return r.rows[0];
       const e = await c.query<{ estado: string }>('SELECT estado FROM ventas_abiertas WHERE id = $1', [id]);
       if (!e.rows[0]) throw new ErrorDeUsuario('La venta abierta no existe');
