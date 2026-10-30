@@ -4,16 +4,16 @@ import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta 
 import { anularVentaAccion } from '../acciones.ts';
 
 /** Anular pide un motivo y confirmación: la venta no se borra, se registra el movimiento inverso. */
-export default function AnularVenta({ id, numero }: { id: string; numero: number }) {
+export default function AnularVenta({ id, numero, esNota = false }: { id: string; numero: number; esNota?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
-  if (!abierto) return <button type="button" style={botonSecundario} onClick={() => setAbierto(true)}>Anular venta</button>;
+  if (!abierto) return <button type="button" style={botonSecundario} onClick={() => setAbierto(true)}>{esNota ? 'Anular nota de crédito' : 'Anular venta'}</button>;
   return (
     <div style={tarjeta}>
-      <b>Anular la venta N° {numero}</b>
-      <p style={{ fontSize: 13, color: '#5c6d66' }}>Se devuelve el stock, se saca el cobro de la caja (o la deuda de la cuenta corriente) y la venta queda marcada como anulada. No se borra nada: queda el registro.</p>
+      <b>Anular {esNota ? 'la nota de crédito' : 'la venta'} N° {numero}</b>
+      <p style={{ fontSize: 13, color: '#5c6d66' }}>{esNota ? 'Se vuelve a sacar el stock, se revierte la devolución de la caja (o de la cuenta corriente) y la nota queda marcada como anulada. No se borra nada: queda el registro.' : 'Se devuelve el stock, se saca el cobro de la caja (o la deuda de la cuenta corriente) y la venta queda marcada como anulada. No se borra nada: queda el registro.'}</p>
       {msg && <div style={estiloError}>{msg}</div>}
       <label style={etiqueta}>Motivo
         <input style={campo} value={motivo} maxLength={200} onChange={(e) => setMotivo(e.target.value)} placeholder="Por ejemplo: error de carga" />

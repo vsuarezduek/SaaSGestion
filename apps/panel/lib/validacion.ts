@@ -235,6 +235,23 @@ export const esquemaVenta = z.object({
 });
 export type DatosVenta = z.infer<typeof esquemaVenta>;
 
+// Nota de crédito: el cliente manda solo qué renglones de la venta de origen devuelve y cuánto; precios, descuentos e IVA salen siempre de la venta original.
+export const esquemaNotaCredito = z.object({
+  clave: z.string().uuid(),
+  ventaOrigenId: z.string().uuid(),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+  renglones: z
+    .array(z.object({ renglonOrigenId: z.string().regex(/^\d{1,18}$/, 'Renglón inválido'), cantidad: cantidad('Cantidad', { cero: false }) }))
+    .min(1, 'Elegí al menos un producto a devolver')
+    .max(200, 'Demasiados renglones'),
+  cobro: z.discriminatedUnion('tipo', [
+    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid(), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('cuenta_corriente') }),
+  ]),
+});
+export type DatosNotaCredito = z.infer<typeof esquemaNotaCredito>;
+
 // ───────── Recibos de cuenta corriente ─────────
 export const esquemaRecibo = z.object({
   clave: z.string().uuid(),

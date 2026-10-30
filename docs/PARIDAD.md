@@ -59,7 +59,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Editar una venta cerrada | ⬜ | En el sistema real: anular + cargar la corregida precargada |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
-| Nota de crédito y devolución | ⬜ | |
+| Nota de crédito y devolución | 🟡 | D-018. Desde la venta, con devolución a caja o cuenta corriente. Falta nota sin venta de origen y comprobante electrónico |
 | PDF y email del comprobante (con IVA detallado) | ⬜ | |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
@@ -101,7 +101,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Costos fijos | ⬜ | |
 
 ## Orden sugerido
-1. **Ventas, segunda entrega:** nota de crédito/devolución, PDF/email, "editar" por anular y recargar.
+1. **Ventas, segunda entrega:** devolución de pago, PDF/email, "editar" por anular y recargar.
 2. **Compras** y **órdenes de pago** (espejo de ventas y recibos).
 3. **Productos:** datos extras, edición en la misma página, historial, masiva, CSV, listas, informe filtrado.
 4. **Recetas, elaboración y costos fijos.**

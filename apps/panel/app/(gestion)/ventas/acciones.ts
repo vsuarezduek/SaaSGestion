@@ -5,7 +5,7 @@ import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 import { ConflictoDeVersion, descartarAbierta, guardarAbierta } from '../../../lib/ventasAbiertas.ts';
 import {
-  anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago,
+  anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, emitirNotaCredito, guardarMedioDePago,
   type ClienteParaVenta, type ProductoParaVenta,
 } from '../../../lib/ventas.ts';
 
@@ -79,4 +79,17 @@ export async function descartarAbiertaAccion(id: string): Promise<{ error?: stri
   }
   revalidatePath('/ventas', 'layout');
   return {};
+}
+
+export async function emitirNotaCreditoAccion(datos: unknown): Promise<{ error?: string; id?: string }> {
+  const s = await sesionObligatoria();
+  let id: string;
+  try {
+    id = (await emitirNotaCredito(s, datos)).id;
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  for (const r of ['/ventas', '/cajas', '/productos', '/clientes']) revalidatePath(r, 'layout');
+  return { id };
 }

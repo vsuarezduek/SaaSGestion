@@ -120,7 +120,7 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
                       {m.ventaId && <Link href={`/ventas/${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver venta</Link>}
                       {m.reciboId && <Link href={`/recibos/${m.reciboId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver recibo</Link>}
                       {conRecibos && m.tipo === 'venta' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirRecibo(m)}>Agregar recibo de pago</button>)}
-                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
+                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
                     </td>
                   </tr>
                 ))}
