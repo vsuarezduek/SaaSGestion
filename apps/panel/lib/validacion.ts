@@ -206,6 +206,7 @@ export const esquemaMedioPago = z.object({
 
 export const esquemaVenta = z.object({
   clave: z.string().uuid(),
+  abiertaId: z.string().uuid().nullable().default(null),   // si la venta salió de una venta abierta, esa se da por cerrada
   clienteId: z.string().uuid(),
   comprobante: z.enum(COMPROBANTES),
   nroComprobante: textoOpcional(30),
@@ -246,3 +247,28 @@ export const esquemaRecibo = z.object({
   nota: textoOpcional(500),
 });
 export type DatosRecibo = z.infer<typeof esquemaRecibo>;
+
+// ───────── Ventas abiertas (borradores) ─────────
+const corto = (max: number) => z.string().max(max);
+export const esquemaBorrador = z.object({
+  clienteId: z.string().uuid(),
+  comprobante: corto(30),
+  nroComprobante: corto(30),
+  listaId: z.string().uuid().nullable(),
+  fecha: corto(30),
+  modoDesc: z.enum(['pct', 'total']),
+  descTotal: corto(20),
+  totalFinal: corto(20),
+  cobroTipo: z.enum(['caja', 'cuenta_corriente']),
+  medioId: corto(40),
+  cajaId: corto(40),
+  nota: corto(500),
+  total: corto(20),                                    // estimado, para mostrar en la lista
+  renglones: z
+    .array(z.object({
+      productoId: z.string().uuid().nullable(), descripcion: corto(200), cantidad: corto(20), precio: corto(20), descuentoPct: corto(20),
+      iva: z.number().min(0).max(100), stock: corto(20).nullable(),
+    }))
+    .max(200, 'Demasiados renglones'),
+});
+export type Borrador = z.infer<typeof esquemaBorrador>;
