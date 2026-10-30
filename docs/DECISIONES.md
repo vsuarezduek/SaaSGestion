@@ -104,3 +104,13 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Decisión:** un pedido es una venta abierta marcada como pedido (`es_pedido`) con fecha de entrega opcional. Se guarda desde la pantalla de venta con "Guardar como pedido" y lo ven todos los usuarios del comercio en Ventas y en la ficha del cliente (junto con sus ventas abiertas). Se ordena por entrega más próxima, los sin fecha al final; los vencidos se marcan.
 - **Convertir:** "Pasar a venta / editar" abre el pedido en la pantalla de venta; al cerrarla nace la venta real (D-013) y el pedido queda `cerrado` con el vínculo. Cancelar = descartar (queda en auditoría, no se borra).
 - **Por qué reutilizar la tabla:** mismo ciclo de vida, misma concurrencia (versión) y mismo bloqueo al cerrar; no mueve caja, stock ni cuenta corriente hasta ser venta. La fecha de entrega solo se admite en pedidos (restricción en base).
+
+## D-018 · Notas de crédito (devolución de una venta)
+- **Estado:** Aceptada para la etapa 1 (segunda entrega de Ventas, parte 6). Agrega tipos de movimiento a los tres libros (como D-013 y D-015): `devolucion_venta` en stock y caja, `nota_credito` en cuenta corriente.
+- **Decisión:** una nota de crédito es una venta con comprobante `nota_credito`, importes en positivo, que apunta a la venta de origen (`venta_origen_id`) y cuyos renglones apuntan al renglón que devuelven. Se hace desde la venta ("Hacer nota de crédito"), eligiendo cuánto devuelve de cada producto.
+- **Precios:** salen siempre de la venta original (el cliente no manda importes). Si se devuelve todo lo vendido de una sola vez, se devuelve exactamente lo cobrado; si es parcial, se aplica el porcentaje de descuento de la venta.
+- **Efectos:** el stock vuelve a sumar; la plata sale de una caja abierta (sin comisión: la comisión que cobró el medio de pago no se recupera) o baja la deuda del cliente en cuenta corriente (solo si su categoría la tiene). Todo con movimientos nuevos; no se edita ni borra nada.
+- **Límite:** no se puede devolver más de lo vendido, descontando devoluciones anteriores; la venta de origen se bloquea mientras se emite para que dos devoluciones simultáneas no se pasen.
+- **Anular:** anular una nota genera los movimientos inversos y libera lo devuelto. Una venta con notas vigentes no se puede anular hasta anular sus notas.
+- **Pendiente:** nota de crédito sin venta de origen (ítems sueltos), nota de crédito electrónica con ARCA (se hace al integrar facturación) y la devolución de pago (saldo a favor del cliente).
+

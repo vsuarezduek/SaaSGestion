@@ -334,7 +334,7 @@ export async function revertirMovimiento(s: SesionActiva, t: Titular, movimiento
     const orig = o.rows[0];
     if (!orig) throw new ErrorDeUsuario('El movimiento no existe');
     if (orig.tipo === 'reversion') throw new ErrorDeUsuario('Una reversión no se puede revertir');
-    if (orig.tipo === 'venta' || orig.tipo === 'recibo') throw new ErrorDeUsuario('Este movimiento viene de una venta o un recibo: se anula desde ahí');
+    if (orig.tipo === 'venta' || orig.tipo === 'recibo' || orig.tipo === 'nota_credito') throw new ErrorDeUsuario('Este movimiento viene de una venta, un recibo o una nota de crédito: se anula desde ahí');
     try {
       const inverso = orig.importe.startsWith('-') ? orig.importe.slice(1) : '-' + orig.importe;
       const id = await insertarMovimiento(c, s, t, 'reversion', inverso, concepto?.trim().slice(0, 200) || 'Reversión', movimientoId);

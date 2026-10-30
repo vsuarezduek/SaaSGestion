@@ -399,4 +399,23 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM ventas_abiertas WHERE es_pedido) <> 0 THEN RAISE EXCEPTION 'B ve pedidos de A'; END IF;
 END $$;
 
+-- 18) Notas de crédito: solo una nota de crédito puede apuntar a una venta de origen; los libros aceptan los movimientos nuevos.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE v uuid; n uuid; c uuid; BEGIN
+  SELECT id, cliente_id INTO v, c FROM ventas ORDER BY numero LIMIT 1;
+  BEGIN
+    INSERT INTO ventas (tenant_id, numero, cliente_id, comprobante, subtotal, total, en_cuenta_corriente, venta_origen_id)
+      VALUES (app.tenant_id(), 9001, c, 'remito', 100, 100, true, v);
+    RAISE EXCEPTION 'permitió un origen en una venta que no es nota de crédito';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO ventas (tenant_id, numero, cliente_id, comprobante, subtotal, total, en_cuenta_corriente, venta_origen_id)
+    VALUES (app.tenant_id(), 9002, c, 'nota_credito', 100, 100, true, v) RETURNING id INTO n;
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, venta_id) VALUES (app.tenant_id(), c, 'nota_credito', -100, n);
+  IF (SELECT count(*) FROM ventas WHERE venta_origen_id = v) <> 1 THEN RAISE EXCEPTION 'falta la nota de crédito'; END IF;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM ventas WHERE venta_origen_id IS NOT NULL) <> 0 THEN RAISE EXCEPTION 'B ve notas de crédito de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

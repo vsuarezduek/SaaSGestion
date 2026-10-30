@@ -5,7 +5,7 @@ import { auditar, ErrorDeUsuario, type SesionActiva } from './auth.ts';
 import { cajaEn } from './cajas.ts';
 import { conTenant } from './db.ts';
 import { exigir } from './permisos.ts';
-import { esquemaMedioPago, esquemaVenta, primerError } from './validacion.ts';
+import { esquemaMedioPago, esquemaNotaCredito, esquemaVenta, primerError } from './validacion.ts';
 import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, escaparLike, terminosDeBusqueda } from '../../../packages/dominio/src/index.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -278,6 +278,7 @@ export async function listarVentas(s: SesionActiva, f: { q?: string; limite?: nu
 export interface DetalleVenta extends FilaVenta {
   nroComprobante: string | null; subtotal: string; descuentoTotal: string; descuentoPct: string; ivaIncluido: string; comision: string; nota: string | null; usuario: string | null;
   clienteId: string; lista: string | null; motivoAnulacion: string | null; anuladaEn: Date | null;
+  origen: { id: string; numero: number } | null; notasCredito: { id: string; numero: number; total: string }[];
   renglones: { descripcion: string; cantidad: string; precio: string; descuentoPct: string; iva: string; total: string; ivaIncluido: string }[];
 }
 
@@ -295,7 +296,10 @@ export async function obtenerVenta(s: SesionActiva, id: string): Promise<Detalle
     if (!f) return null;
     const rg = await c.query(
       `SELECT descripcion, cantidad::text, precio::text, descuento_pct::text, iva::text, total::text, iva_incluido::text FROM venta_renglones WHERE venta_id = $1 ORDER BY orden`, [id]);
+    const origen = f.venta_origen_id ? (await c.query<{ id: string; numero: number }>('SELECT id, numero FROM ventas WHERE id = $1', [f.venta_origen_id])).rows[0] ?? null : null;
+    const ncs = await c.query<{ id: string; numero: number; total: string }>("SELECT id, numero, total::text FROM ventas WHERE venta_origen_id = $1 AND estado = 'cerrada' ORDER BY numero", [id]);
     return {
+      origen, notasCredito: ncs.rows,
       id: f.id, numero: f.numero, fecha: f.fecha, cliente: f.cliente, clienteId: f.cliente_id, comprobante: f.comprobante, total: f.total_t, estado: f.estado, cobro: f.cobro,
       nroComprobante: f.nro_comprobante, subtotal: f.subtotal_t, descuentoTotal: f.dtotal_t, descuentoPct: f.dpct_t, ivaIncluido: f.iva_t, comision: f.com_t, nota: f.nota, usuario: f.usuario, lista: f.lista, motivoAnulacion: f.motivo_anulacion, anuladaEn: f.anulada_en,
       renglones: rg.rows.map((x) => ({ descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio, descuentoPct: x.descuento_pct, iva: x.iva, total: x.total, ivaIncluido: x.iva_incluido })),
@@ -313,26 +317,169 @@ export async function anularVenta(s: SesionActiva, id: string, motivo: string): 
   if (m.length > 200) throw new ErrorDeUsuario('El motivo es demasiado largo (máximo 200 caracteres)');
   if (!UUID.test(id)) throw new ErrorDeUsuario('La venta no existe');
   await conTenant(s.tenantId, async (c) => {
-    const v = await c.query<{ numero: number; estado: string }>('SELECT numero, estado FROM ventas WHERE id = $1 FOR UPDATE', [id]);
+    const v = await c.query<{ numero: number; estado: string; comprobante: string }>('SELECT numero, estado, comprobante FROM ventas WHERE id = $1 FOR UPDATE', [id]);
     const venta = v.rows[0];
     if (!venta) throw new ErrorDeUsuario('La venta no existe');
     if (venta.estado === 'anulada') throw new ErrorDeUsuario('La venta ya está anulada');
     if (venta.estado !== 'cerrada') throw new ErrorDeUsuario('Solo se anulan ventas cerradas');
-    const concepto = `Anulación venta N° ${venta.numero}`;
+    const esNota = venta.comprobante === 'nota_credito';
+    if (!esNota) {
+      const nc = await c.query<{ numero: number }>("SELECT numero FROM ventas WHERE venta_origen_id = $1 AND estado = 'cerrada' ORDER BY numero LIMIT 1", [id]);
+      if (nc.rows[0]) throw new ErrorDeUsuario(`Esta venta tiene la nota de crédito N° ${nc.rows[0].numero}: anulala primero`);
+    }
+    const concepto = `${esNota ? 'Anulación nota de crédito' : 'Anulación venta'} N° ${venta.numero}`;
     // Una reversión de caja se permite aunque la caja ya esté cerrada (queda en el libro, sin turno).
     await c.query(
       `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
        SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, venta_id FROM caja_movimientos
-        WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta')`, [id, concepto, s.usuarioId]);
+        WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
     await c.query(
       `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, revierte_id, usuario_id, venta_id)
        SELECT app.tenant_id(), producto_id, 'reversion', -cantidad, $2, id, $3, venta_id FROM stock_movimientos
-        WHERE venta_id = $1 AND tipo = 'venta'`, [id, concepto, s.usuarioId]);
+        WHERE venta_id = $1 AND tipo IN ('venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
     await c.query(
       `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
        SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, venta_id FROM cuenta_corriente_movimientos
-        WHERE venta_id = $1 AND tipo = 'venta'`, [id, concepto, s.usuarioId]);
+        WHERE venta_id = $1 AND tipo IN ('venta', 'nota_credito')`, [id, concepto, s.usuarioId]);
     await c.query(`UPDATE ventas SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
-    await auditar(c, s.usuarioId, 'anular', 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
+    await auditar(c, s.usuarioId, 'anular', esNota ? 'nota_credito' : 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
+  });
+}
+
+// ───────── Nota de crédito (devolución de una venta) ─────────
+export interface DatosParaNotaCredito {
+  venta: { id: string; numero: number; clienteId: string; cliente: string; descuentoPct: string; total: string };
+  renglones: { id: string; descripcion: string; cantidad: string; disponible: string; precio: string; descuentoPct: string; iva: string }[];
+  /** true si ya se devolvió algo de esta venta (la devolución total exacta solo vale la primera vez). */
+  conDevoluciones: boolean;
+  cuentaCorriente: boolean;
+}
+
+/** Lo que hace falta para armar la nota de crédito de una venta cerrada: sus renglones con lo que todavía se puede devolver. */
+export async function datosParaNotaCredito(s: SesionActiva, ventaId: string): Promise<DatosParaNotaCredito | null> {
+  exigir(s, 'ventas');
+  if (!UUID.test(ventaId)) return null;
+  return conTenant(s.tenantId, async (c) => {
+    const v = await c.query(
+      `SELECT v.id, v.numero, v.cliente_id, c.nombre AS cliente, v.descuento_pct::text, v.total::text, COALESCE(k.cuenta_corriente, false) AS cc, c.es_consumidor_final AS cf
+         FROM ventas v JOIN clientes c ON c.id = v.cliente_id LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id
+        WHERE v.id = $1 AND v.estado = 'cerrada' AND v.comprobante <> 'nota_credito'`, [ventaId]);
+    const f = v.rows[0];
+    if (!f) return null;
+    const r = await c.query(
+      `SELECT r.id::text, r.descripcion, r.cantidad::text, r.precio::text, r.descuento_pct::text, r.iva::text,
+              (r.cantidad - COALESCE((SELECT sum(x.cantidad) FROM venta_renglones x JOIN ventas nv ON nv.id = x.venta_id AND nv.estado = 'cerrada' WHERE x.renglon_origen_id = r.id), 0))::text AS disponible
+         FROM venta_renglones r WHERE r.venta_id = $1 ORDER BY r.orden`, [ventaId]);
+    const renglones = r.rows.map((x) => ({ id: x.id, descripcion: x.descripcion, cantidad: x.cantidad, disponible: x.disponible, precio: x.precio, descuentoPct: x.descuento_pct, iva: x.iva }));
+    return {
+      venta: { id: f.id, numero: f.numero, clienteId: f.cliente_id, cliente: f.cliente, descuentoPct: f.descuento_pct, total: f.total },
+      renglones, conDevoluciones: renglones.some((x) => Number(x.disponible) !== Number(x.cantidad)), cuentaCorriente: f.cc && !f.cf,
+    };
+  });
+}
+
+export interface ResultadoNotaCredito { id: string; numero: number; total: string; repetida: boolean }
+const milesimas = (n: string) => Math.round(Number(n) * 1000);
+
+/** Emite la nota de crédito de una venta cerrada: devuelve stock, devuelve la plata (caja, sin comisión) o baja la deuda del cliente.
+ *  Los precios, descuentos e IVA salen de la venta original. No se puede devolver más de lo vendido (descontando devoluciones anteriores). */
+export async function emitirNotaCredito(s: SesionActiva, entrada: unknown): Promise<ResultadoNotaCredito> {
+  exigir(s, 'ventas');
+  const v = esquemaNotaCredito.safeParse(entrada);
+  if (!v.success) throw new ErrorDeUsuario(primerError(v.error));
+  const d = v.data;
+  if (new Set(d.renglones.map((r) => r.renglonOrigenId)).size !== d.renglones.length) throw new ErrorDeUsuario('Un producto está repetido en la devolución');
+  return conTenant(s.tenantId, async (c) => {
+    const previa = await c.query<{ id: string; numero: number; total: string }>('SELECT id, numero, total::text FROM ventas WHERE clave = $1', [d.clave]);
+    if (previa.rows[0]) return { ...previa.rows[0], repetida: true };
+
+    // Se bloquea la venta de origen: dos devoluciones a la vez no pueden pasarse del total vendido.
+    const o = await c.query<{ id: string; numero: number; estado: string; comprobante: string; cliente_id: string; descuento_pct: string; total: string }>(
+      'SELECT id, numero, estado, comprobante, cliente_id, descuento_pct::text, total::text FROM ventas WHERE id = $1 FOR UPDATE', [d.ventaOrigenId]);
+    const origen = o.rows[0];
+    if (!origen) throw new ErrorDeUsuario('La venta de origen no existe');
+    if (origen.estado !== 'cerrada') throw new ErrorDeUsuario('Solo se hace nota de crédito de ventas cerradas (no anuladas)');
+    if (origen.comprobante === 'nota_credito') throw new ErrorDeUsuario('No se hace una nota de crédito de otra nota de crédito');
+
+    const rg = await c.query<{ id: string; orden: number; producto_id: string | null; descripcion: string; cantidad: string; precio: string; descuento_pct: string; iva: string; disponible: string }>(
+      `SELECT r.id::text, r.orden, r.producto_id, r.descripcion, r.cantidad::text, r.precio::text, r.descuento_pct::text, r.iva::text,
+              (r.cantidad - COALESCE((SELECT sum(x.cantidad) FROM venta_renglones x JOIN ventas nv ON nv.id = x.venta_id AND nv.estado = 'cerrada' WHERE x.renglon_origen_id = r.id), 0))::text AS disponible
+         FROM venta_renglones r WHERE r.venta_id = $1 ORDER BY r.orden`, [origen.id]);
+    const porId = new Map(rg.rows.map((x) => [x.id, x]));
+    const lineas = d.renglones.map((r) => {
+      const o2 = porId.get(r.renglonOrigenId);
+      if (!o2) throw new ErrorDeUsuario('Un renglón no pertenece a esa venta');
+      if (milesimas(r.cantidad) > milesimas(o2.disponible)) {
+        throw new ErrorDeUsuario(`No se puede devolver más de lo vendido: de "${o2.descripcion}" quedan ${o2.disponible} por devolver`);
+      }
+      return { ...o2, devuelve: r.cantidad };
+    });
+
+    const cli = await c.query<{ cc: boolean | null; cf: boolean }>(
+      `SELECT k.cuenta_corriente AS cc, c.es_consumidor_final AS cf FROM clientes c LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id WHERE c.id = $1`, [origen.cliente_id]);
+
+    // Devolución total y exacta (todo lo vendido, sin devoluciones previas): se devuelve exactamente lo cobrado, sin diferencias de centavos por redondeo del descuento.
+    const esTotal = lineas.length === rg.rows.length && lineas.every((l) => milesimas(l.devuelve) === milesimas(l.cantidad) && milesimas(l.disponible) === milesimas(l.cantidad));
+    const calc = calcularVenta(
+      lineas.map((l) => ({ cantidad: l.devuelve, precio: aCentavos(l.precio), descuentoPct: Number(l.descuento_pct), iva: Number(l.iva) })),
+      esTotal ? { totalFinal: aCentavos(origen.total) } : Number(origen.descuento_pct),
+    );
+
+    let cajaDestino: Awaited<ReturnType<typeof cajaEn>> | null = null;
+    let medioId: string | null = null;
+    if (d.cobro.tipo === 'cuenta_corriente') {
+      if (!cli.rows[0]?.cc || cli.rows[0].cf) throw new ErrorDeUsuario('La categoría de este cliente no tiene cuenta corriente habilitada');
+    } else {
+      const m = await c.query<{ id: string }>(
+        `SELECT m.id FROM medios_pago m WHERE m.id = $1 AND m.activo AND EXISTS (SELECT 1 FROM medio_pago_cajas x WHERE x.medio_id = m.id AND x.caja_id = $2)`,
+        [d.cobro.medioPagoId, d.cobro.cajaId]);
+      if (!m.rows[0]) throw new ErrorDeUsuario('Ese medio de pago no está habilitado para esa caja');
+      medioId = m.rows[0].id;
+      cajaDestino = await cajaEn(c, s, d.cobro.cajaId);
+      if (!cajaDestino.turnoId) throw new ErrorDeUsuario(`La caja ${cajaDestino.nombre} está cerrada: abrila para devolver el dinero`);
+    }
+
+    const numero = await siguienteNumero(c);
+    const pct = calc.subtotal > 0 ? Math.round((calc.descuentoTotal / calc.subtotal) * 10000) / 100 : 0;
+    const vr = await c.query<{ id: string }>(
+      `INSERT INTO ventas (tenant_id, numero, estado, clave, cliente_id, comprobante, fecha, descuento_pct, subtotal, descuento_total, total, iva_incluido,
+                           en_cuenta_corriente, medio_pago_id, caja_id, comision, nota, usuario_id, venta_origen_id)
+       VALUES (app.tenant_id(), $1, 'cerrada', $2, $3, 'nota_credito', COALESCE($4::timestamptz, now()), $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15) RETURNING id`,
+      [numero, d.clave, origen.cliente_id, d.fecha, pct, deCentavos(calc.subtotal), deCentavos(calc.descuentoTotal), deCentavos(calc.total), deCentavos(calc.ivaIncluido),
+       d.cobro.tipo === 'cuenta_corriente', medioId, cajaDestino?.id ?? null, d.nota, s.usuarioId, origen.id],
+    );
+    const ncId = vr.rows[0]!.id;
+    for (const [i, l] of lineas.entries()) {
+      const k = calc.renglones[i]!;
+      await c.query(
+        `INSERT INTO venta_renglones (tenant_id, venta_id, orden, producto_id, descripcion, cantidad, precio, descuento_pct, iva, subtotal, total, iva_incluido, renglon_origen_id)
+         VALUES (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [ncId, i + 1, l.producto_id, l.descripcion, l.devuelve, l.precio, l.descuento_pct, l.iva, deCentavos(k.subtotal), deCentavos(k.total), deCentavos(k.iva), l.id],
+      );
+      if (l.producto_id) {
+        await c.query(
+          `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, usuario_id, venta_id)
+           VALUES (app.tenant_id(), $1, 'devolucion_venta', $2, $3, $4, $5)`,
+          [l.producto_id, l.devuelve, `Nota de crédito N° ${numero}`, s.usuarioId, ncId],
+        );
+      }
+    }
+    if (calc.total > 0) { // una nota de $0 no mueve plata
+      if (cajaDestino) {
+        await c.query(
+          `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, usuario_id, venta_id, fecha)
+           VALUES (app.tenant_id(), $1, $2, 'devolucion_venta', $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
+          [cajaDestino.id, cajaDestino.turnoId, deCentavos(-calc.total), `Nota de crédito N° ${numero} (venta N° ${origen.numero})`, s.usuarioId, ncId, d.fecha],
+        );
+      } else {
+        await c.query(
+          `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, concepto, usuario_id, venta_id)
+           VALUES (app.tenant_id(), $1, 'nota_credito', $2, $3, $4, $5)`,
+          [origen.cliente_id, deCentavos(-calc.total), `Nota de crédito N° ${numero} (venta N° ${origen.numero})`, s.usuarioId, ncId],
+        );
+      }
+    }
+    await auditar(c, s.usuarioId, 'emitir', 'nota_credito', { numero, origen: origen.numero, total: deCentavos(calc.total), cobro: d.cobro.tipo }, { entidadId: ncId });
+    return { id: ncId, numero, total: deCentavos(calc.total), repetida: false };
   });
 }

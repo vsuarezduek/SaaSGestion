@@ -57,7 +57,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
                 <td style={celda}><Link href={`/ventas/${v.id}`} style={{ color: '#1c9764' }}>{v.numero}</Link></td>
                 <td style={celda}>{v.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
                 <td style={celda}>{v.cliente}</td><td style={celda}>{ETIQUETAS[v.comprobante] ?? v.comprobante}{v.estado === 'anulada' ? ' (anulada)' : ''}</td>
-                <td style={celda}>{v.cobro}</td><td style={celda}>{formatearPesos(aCentavos(v.total))}</td>
+                <td style={celda}>{v.cobro}</td><td style={celda}>{v.comprobante === 'nota_credito' ? '−' : ''}{formatearPesos(aCentavos(v.total))}</td>
               </tr>
             ))}
             {ventas.length === 0 && (<tr><td style={celda} colSpan={6}>Todavía no hay ventas.</td></tr>)}
