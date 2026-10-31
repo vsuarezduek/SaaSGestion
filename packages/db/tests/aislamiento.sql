@@ -537,4 +537,57 @@ DO $$ DECLARE a uuid; BEGIN
   END;
 END $$;
 
+-- 22) Recetas, elaboraciones y costos fijos: aislados por comercio; las elaboraciones no se borran y sus insumos no se tocan.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE p uuid; q uuid; e uuid; BEGIN
+  INSERT INTO productos (tenant_id, codigo, nombre) VALUES (app.tenant_id(), 'R1', 'Torta receta') RETURNING id INTO p;
+  INSERT INTO productos (tenant_id, codigo, nombre) VALUES (app.tenant_id(), 'R2', 'Harina receta') RETURNING id INTO q;
+  INSERT INTO receta_ingredientes (tenant_id, producto_id, ingrediente_id, cantidad) VALUES (app.tenant_id(), p, q, 2);
+  BEGIN
+    INSERT INTO receta_ingredientes (tenant_id, producto_id, ingrediente_id, cantidad) VALUES (app.tenant_id(), p, p, 1);
+    RAISE EXCEPTION 'permitió un producto como ingrediente de sí mismo';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO receta_ingredientes (tenant_id, producto_id, ingrediente_id, cantidad) VALUES (app.tenant_id(), p, q, 0);
+    RAISE EXCEPTION 'permitió un ingrediente en cantidad 0';
+  EXCEPTION WHEN check_violation OR unique_violation THEN NULL; END;
+  BEGIN
+    UPDATE productos SET rinde = 0 WHERE id = p;
+    RAISE EXCEPTION 'permitió un rendimiento de 0';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO elaboraciones (tenant_id, numero, producto_id, cantidad) VALUES (app.tenant_id(), 1, p, 10) RETURNING id INTO e;
+  INSERT INTO elaboracion_insumos (tenant_id, elaboracion_id, ingrediente_id, cantidad) VALUES (app.tenant_id(), e, q, 2);
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, elaboracion_id) VALUES (app.tenant_id(), p, 'elaboracion', 10, e);
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, elaboracion_id) VALUES (app.tenant_id(), q, 'elaboracion', -2, e);
+  BEGIN
+    INSERT INTO elaboraciones (tenant_id, numero, producto_id, cantidad) VALUES (app.tenant_id(), 2, p, 0);
+    RAISE EXCEPTION 'permitió una elaboración de cantidad 0';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN DELETE FROM elaboraciones; RAISE EXCEPTION 'permitió borrar una elaboración';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE elaboraciones SET cantidad = 99; RAISE EXCEPTION 'permitió cambiar la cantidad de una elaboración cerrada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE elaboracion_insumos SET cantidad = 99; RAISE EXCEPTION 'permitió cambiar un insumo';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM elaboracion_insumos; RAISE EXCEPTION 'permitió borrar un insumo';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  INSERT INTO costos_fijos_config (tenant_id, activo, dias, base) VALUES (app.tenant_id(), true, 30, 'unidades');
+  BEGIN
+    UPDATE costos_fijos_config SET base = 'raro';
+    RAISE EXCEPTION 'permitió un reparto inválido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO costos_fijos_items (tenant_id, producto_id, cantidad) VALUES (app.tenant_id(), q, 1);
+  UPDATE elaboraciones SET estado = 'anulada', anulada_en = now();
+  BEGIN UPDATE elaboraciones SET nota = 'x'; RAISE EXCEPTION 'permitió tocar una elaboración anulada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM receta_ingredientes) <> 0 THEN RAISE EXCEPTION 'B ve recetas de A'; END IF;
+  IF (SELECT count(*) FROM elaboraciones) <> 0 THEN RAISE EXCEPTION 'B ve elaboraciones de A'; END IF;
+  IF (SELECT count(*) FROM elaboracion_insumos) <> 0 THEN RAISE EXCEPTION 'B ve insumos de A'; END IF;
+  IF (SELECT count(*) FROM costos_fijos_config) <> 0 THEN RAISE EXCEPTION 'B ve la configuración de costos fijos de A'; END IF;
+  IF (SELECT count(*) FROM costos_fijos_items) <> 0 THEN RAISE EXCEPTION 'B ve costos fijos de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

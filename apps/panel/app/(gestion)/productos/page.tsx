@@ -34,6 +34,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <Link href="/productos/masiva" style={{ ...botonSecundario, textDecoration: 'none' }}>Modificar costos masivamente</Link>
         <Link href="/comprobante/listas" style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar listas de precios</Link>
+        <Link href="/productos/costos-fijos" style={{ ...botonSecundario, textDecoration: 'none' }}>Costos fijos</Link>
         <Link href="/productos/extras" style={{ ...botonSecundario, textDecoration: 'none' }}>Datos extras</Link>
         <a href="/productos/exportar" style={{ ...botonSecundario, textDecoration: 'none' }}>Exportar CSV</a>
         <Link href="/importar" style={{ ...botonSecundario, textDecoration: 'none' }}>Importar</Link>

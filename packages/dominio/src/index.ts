@@ -5,3 +5,4 @@ export * from './cantidad.ts';
 export * from './ventas.ts';
 export * from './compras.ts';
 export * from './masiva.ts';
+export * from './recetas.ts';

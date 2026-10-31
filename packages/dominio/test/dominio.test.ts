@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   aCentavos, deCentavos, normalizarImporte, formatearPesos,
   precioDesdeUtilidad, utilidadDesdePrecio, precioMantenerUtilidad, ivaIncluido, esAlicuotaValida,
-  plegar, terminosDeBusqueda, escaparLike, calcularCompra, impuestoDeTransaccion, ajustarCosto,
+  plegar, terminosDeBusqueda, escaparLike, calcularCompra, impuestoDeTransaccion, ajustarCosto, costoIngredientes, insumoDeElaboracion, costoFijoPorUnidad,
 } from '../src/index.ts';
 
 test('importes: de texto a centavos y de vuelta, sin decimales de coma flotante', () => {
@@ -219,4 +219,33 @@ test('modificación masiva: porcentaje o importe, con redondeo y piso en cero', 
   assert.equal(ajustarCosto(0, 'pct', 50), 0);
   assert.throws(() => ajustarCosto(100, 'imp', 1.5));
   assert.throws(() => ajustarCosto(-1, 'pct', 1));
+});
+
+test('receta: costo de ingredientes por unidad según lo que rinde la tanda', () => {
+  // 2 kg de harina a $100 + 0,5 kg de manteca a $400 = $400 por tanda de 10 unidades → $40
+  assert.equal(costoIngredientes([{ cantidad: '2', costo: 10000 }, { cantidad: '0.5', costo: 40000 }], '10'), 4000);
+  assert.equal(costoIngredientes([], '1'), 0);
+  assert.equal(costoIngredientes([{ cantidad: '1', costo: 100 }], '3'), 33);       // 33,33 → 33
+  assert.equal(costoIngredientes([{ cantidad: '1', costo: 100 }], '0.5'), 200);
+  assert.throws(() => costoIngredientes([{ cantidad: '1', costo: 100 }], '0'));
+  assert.throws(() => costoIngredientes([{ cantidad: 'x', costo: 100 }], '1'));
+});
+
+test('elaboración: insumos proporcionales a lo elaborado', () => {
+  assert.equal(insumoDeElaboracion('2', '5', '10'), '1.000');
+  assert.equal(insumoDeElaboracion('0.5', '20', '10'), '1.000');
+  assert.equal(insumoDeElaboracion('1', '1', '3'), '0.333');                       // 0,3333 → 0,333
+  assert.equal(insumoDeElaboracion('1', '2', '3'), '0.667');                       // 0,6667 → 0,667
+  assert.throws(() => insumoDeElaboracion('1', '1', '0'));
+});
+
+test('costos fijos: reparto por unidades o por costo de ingredientes; sin producción es cero', () => {
+  const prod = [{ unidades: '100', costoIngredientes: 1000 }, { unidades: '50', costoIngredientes: 4000 }];
+  // Por unidades: $15.000 ÷ 150 u. = $100 por unidad (10000 centavos)
+  assert.equal(costoFijoPorUnidad(1500000, 'unidades', prod, 1000), 10000);
+  // Por costo: denominador = 100×1000 + 50×4000 = 300000; al producto de $10 le toca 1500000×1000÷300000 = 5000
+  assert.equal(costoFijoPorUnidad(1500000, 'costo_ingredientes', prod, 1000), 5000);
+  assert.equal(costoFijoPorUnidad(1500000, 'costo_ingredientes', prod, 4000), 20000);
+  assert.equal(costoFijoPorUnidad(1500000, 'unidades', [], 1000), 0);
+  assert.equal(costoFijoPorUnidad(0, 'unidades', prod, 1000), 0);
 });

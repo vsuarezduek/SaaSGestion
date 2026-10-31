@@ -6,7 +6,9 @@ import { historialDeProducto, type MovimientoHistorial } from '../../../../lib/h
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { movimientosDeStock } from '../../../../lib/stock.ts';
 import FormularioProducto from '../FormularioProducto.tsx';
+import RecetaProducto from '../receta/RecetaProducto.tsx';
 import StockProducto from '../StockProducto.tsx';
+import { obtenerReceta } from '../../../../lib/recetas.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function EditarProducto({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await sesionObligatoria();
-  const [p, listas, rubros, movs, proveedores, datosExtra, hist] = await Promise.all([obtenerProducto(s, id), listasDePrecios(s), listarRubros(s), movimientosDeStock(s, id), proveedoresParaProducto(s), datosExtraConValores(s), historialDeProducto(s, id)]);
+  const [p, listas, rubros, movs, proveedores, datosExtra, hist, receta] = await Promise.all([obtenerProducto(s, id), listasDePrecios(s), listarRubros(s), movimientosDeStock(s, id), proveedoresParaProducto(s), datosExtraConValores(s), historialDeProducto(s, id), obtenerReceta(s, id)]);
   if (!p) notFound();
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
@@ -30,6 +32,7 @@ export default async function EditarProducto({ params }: { params: Promise<{ id:
         rubros={rubros.filter((r) => r.activo || r.id === p.rubroId)}
         inicial={{ ...p, id: p.id, codigo: p.codigo ?? '', rubroId: p.rubroId ?? '', tipo: p.tipo ?? '', urlWeb: p.urlWeb ?? '', proveedorId: p.proveedorId ?? '' }}
       />
+      {receta && <RecetaProducto r={receta} nombre={p.nombre} unidad={p.unidad} />}
       <Historial titulo="Historial de ventas" total={hist.totalVendido} filas={hist.ventas} base="/ventas" unidad={p.unidad} />
       <Historial titulo="Historial de compras" total={hist.totalComprado} filas={hist.compras} base="/compras" unidad={p.unidad} />
     </main>

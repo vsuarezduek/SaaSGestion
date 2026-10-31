@@ -13,7 +13,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Ficha: código, rubro/subrubros, tipo, proveedor, IVA, unidad, costo y listas de precios | ✅ | Proveedor del producto: D-024 |
 | Stock actual/ideal/mínimo, libro de stock, alertas (incl. negativo) | ✅ | |
-| Disponible para venta/compra/integrar, web | 🟡 | Hay vendible/comprable/integrable/web; falta "compuesto" con receta |
+| Disponible para venta/compra/integrar, web | ✅ | "Compuesto" = tiene receta (D-026) |
 | **Datos extras** configurables (renombrar, agregar, quitar) y valores por producto | ✅ | D-024 |
 | Datos extras: lista de productos por valor, renombrar valor, quitar valor, agregar productos | ✅ | v44 |
 | **Editar el producto en la misma página** (Guardar/Cancelar) | ⬜ | v43 (hoy la ficha del sistema real es un formulario aparte) |
@@ -23,7 +23,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Exportar/importar CSV (por código, crear inexistentes) | ✅ | Importar con vista previa (D-023) y exportar con columnas elegibles (D-025) |
 | Descargar listas de precios (PDF con logo y CSV) | 🟡 | PDF (imprimir) y CSV con filtros; falta el logo (con Empresa) |
 | Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
-| Recetas, elaboración, costos fijos | ⬜ | |
+| Recetas, elaboración, costos fijos | ✅ | D-026; elaborar, anular, aplicar costo |
 | "Marcar para pedir" / mercadería a pedir | ⬜ | |
 
 ## Clientes y proveedores
@@ -99,7 +99,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Empresa (logo, datos) | ⬜ | |
 | Retenciones/comisiones por medio | ✅ | Medios de pago |
 | Rubros | ✅ | |
-| Costos fijos | ⬜ | |
+| Costos fijos | ✅ | Productos → Costos fijos (D-026) |
 
 ## Orden sugerido
 1. **Ventas, segunda entrega:** ✅ casi completa (falta el email del comprobante y la nota de crédito sin venta de origen).
