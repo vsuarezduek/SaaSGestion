@@ -16,14 +16,16 @@ interface Props {
   clienteInicial: Cliente;
   /** Venta abierta que se está retomando (si la hay). */
   abierta?: { id: string; version: number; datos: Borrador } | null;
+  /** Venta cerrada que se está corrigiendo: al cerrar, esa se anula y la nueva la reemplaza. */
+  edicion?: { ventaId: string; numero: number; datos: Borrador } | null;
 }
 
 const COMPROBANTES: [string, string][] = [['remito', 'Remito'], ['factura_b', 'Factura B'], ['factura_a', 'Factura A'], ['sin_comprobante', 'Sin comprobante']];
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abierta }: Props) {
-  const ini = abierta?.datos;
+export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abierta, edicion }: Props) {
+  const ini = abierta?.datos ?? edicion?.datos;
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma venta no se cierra dos veces
   const [cliente, setCliente] = useState<Cliente>(clienteInicial);
@@ -85,7 +87,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const [abiertaId, setAbiertaId] = useState<string | null>(abierta?.id ?? null);
   const abiertaRef = useRef<string | null>(abierta?.id ?? null);
   const versionRef = useRef(abierta?.version ?? 0);
-  const detenido = useRef(false);
+  const detenido = useRef(!!edicion);   // editar una venta cerrada no se guarda como borrador
   const cola = useRef<Promise<unknown>>(Promise.resolve());
   const [guardado, setGuardado] = useState<string>(abierta ? 'Venta abierta recuperada' : '');
   const borrador: Borrador = {
@@ -191,11 +193,11 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
       detenido.current = true;          // ya no se guarda como borrador: se está cerrando
       await cola.current;               // si había un guardado en curso, que termine antes
       const r = await cerrarVentaAccion({
-        clave, abiertaId: abiertaRef.current, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: modoDesc === 'pct' ? pctNum(descTotal) : 0, totalFinal: modoDesc === 'total' && totalFinal.trim() !== '' ? totalFinal : null, nota,
+        clave, abiertaId: abiertaRef.current, reemplazaVentaId: edicion?.ventaId ?? null, clienteId: cliente.id, comprobante, nroComprobante, listaId: listaId || null, fecha, descuentoTotalPct: modoDesc === 'pct' ? pctNum(descTotal) : 0, totalFinal: modoDesc === 'total' && totalFinal.trim() !== '' ? totalFinal : null, nota,
         renglones: renglones.map((x) => ({ productoId: x.productoId, descripcion: x.descripcion, cantidad: x.cantidad, precio: x.precio, descuentoPct: pctNum(x.descuentoPct), iva: x.iva })),
         cobro: cobroTipo === 'cuenta_corriente' ? { tipo: 'cuenta_corriente' } : { tipo: 'caja', medioPagoId: medioId, cajaId },
       });
-      if (r.error) { detenido.current = false; setMsg(r.error); return; }
+      if (r.error) { detenido.current = !!edicion; setMsg(r.error); return; }
       router.push(`/ventas/${r.id}${r.avisosStock?.length ? `?avisos=${encodeURIComponent(r.avisosStock.join(', '))}` : ''}`);
     });
 
@@ -207,6 +209,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   return (
     <>
       {msg && <div style={estiloError}>{msg}</div>}
+      {edicion && <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0', fontSize: 14 }}>Estás corrigiendo la venta N° {edicion.numero}. Al guardar, esa venta se anula (queda registrada, con sus movimientos revertidos) y se crea una nueva con estos datos.</div>}
       <div style={tarjeta}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ flex: '2 1 260px', position: 'relative' }}>
@@ -328,10 +331,11 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
           <input type="date" style={campo} value={entrega} onChange={(e) => setEntrega(e.target.value)} />
         </label>
         <div style={{ marginTop: 14 }}>
-          <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Cerrando…' : 'Cerrar venta'}</button>{' '}
-          <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>{' '}
-          <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={guardarPedido}>Guardar como pedido</button>{' '}
-          {abiertaId && <button type="button" style={botonSecundario} disabled={pend} onClick={() => { if (window.confirm(esPedido ? '¿Cancelar este pedido? No se puede recuperar.' : '¿Descartar esta venta abierta? No se puede recuperar.')) descartar(); }}>Descartar</button>}
+          <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Guardando…' : edicion ? 'Guardar cambios' : 'Cerrar venta'}</button>{' '}
+          {!edicion && <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>}{' '}
+          {!edicion && <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={guardarPedido}>Guardar como pedido</button>}{' '}
+          {edicion && <button type="button" style={botonSecundario} disabled={pend} onClick={() => router.push(`/ventas/${edicion.ventaId}`)}>Cancelar edición</button>}{' '}
+          {abiertaId && !edicion && <button type="button" style={botonSecundario} disabled={pend} onClick={() => { if (window.confirm(esPedido ? '¿Cancelar este pedido? No se puede recuperar.' : '¿Descartar esta venta abierta? No se puede recuperar.')) descartar(); }}>Descartar</button>}
           {guardado && <span style={{ marginLeft: 10, color: '#5c6d66', fontSize: 13 }}>{guardado}</span>}
         </div>
       </div>

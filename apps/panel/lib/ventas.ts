@@ -5,7 +5,7 @@ import { auditar, ErrorDeUsuario, type SesionActiva } from './auth.ts';
 import { cajaEn } from './cajas.ts';
 import { conTenant } from './db.ts';
 import { exigir } from './permisos.ts';
-import { esquemaMedioPago, esquemaNotaCredito, esquemaVenta, primerError } from './validacion.ts';
+import { esquemaMedioPago, esquemaNotaCredito, esquemaVenta, primerError, type Borrador } from './validacion.ts';
 import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, escaparLike, terminosDeBusqueda } from '../../../packages/dominio/src/index.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -191,6 +191,14 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
     }
 
     const numero = await siguienteNumero(c);
+    // Edición de una venta cerrada: la vieja se anula (con sus movimientos inversos) y esta la reemplaza, en la misma transacción.
+    let reemplazada: number | null = null;
+    if (d.reemplazaVentaId) {
+      const ant = await c.query<{ numero: number }>('SELECT numero FROM ventas WHERE id = $1', [d.reemplazaVentaId]);
+      if (!ant.rows[0]) throw new ErrorDeUsuario('La venta que se quiere editar no existe');
+      reemplazada = ant.rows[0].numero;
+      await anularEnTransaccion(c, s, d.reemplazaVentaId, `Modificada: reemplazada por la venta N° ${numero}`);
+    }
     const vr = await c.query<{ id: string }>(
       `INSERT INTO ventas (tenant_id, numero, estado, clave, cliente_id, comprobante, nro_comprobante, lista_id, fecha, descuento_pct, subtotal, descuento_total,
                            total, iva_incluido, en_cuenta_corriente, medio_pago_id, caja_id, comision, nota, usuario_id)
@@ -248,7 +256,7 @@ export async function cerrarVenta(s: SesionActiva, entrada: unknown): Promise<Re
              AND (SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = p.id) < 0 ORDER BY lower(p.nombre)`, [ids])
       : { rows: [] as { nombre: string }[] };
 
-    await auditar(c, s.usuarioId, 'cerrar', 'venta', { numero, cliente: d.clienteId, total: deCentavos(calc.total), comprobante: d.comprobante, cobro: d.cobro.tipo }, { entidadId: ventaId });
+    await auditar(c, s.usuarioId, 'cerrar', 'venta', { numero, cliente: d.clienteId, total: deCentavos(calc.total), comprobante: d.comprobante, cobro: d.cobro.tipo, reemplaza: reemplazada }, { entidadId: ventaId });
     return { id: ventaId, numero, total: deCentavos(calc.total), comision: deCentavos(comision), avisosStock: neg.rows.map((f) => f.nombre), repetida: false };
   });
 }
@@ -316,34 +324,37 @@ export async function anularVenta(s: SesionActiva, id: string, motivo: string): 
   if (m.length < 3) throw new ErrorDeUsuario('Indicá el motivo de la anulación');
   if (m.length > 200) throw new ErrorDeUsuario('El motivo es demasiado largo (máximo 200 caracteres)');
   if (!UUID.test(id)) throw new ErrorDeUsuario('La venta no existe');
-  await conTenant(s.tenantId, async (c) => {
-    const v = await c.query<{ numero: number; estado: string; comprobante: string }>('SELECT numero, estado, comprobante FROM ventas WHERE id = $1 FOR UPDATE', [id]);
-    const venta = v.rows[0];
-    if (!venta) throw new ErrorDeUsuario('La venta no existe');
-    if (venta.estado === 'anulada') throw new ErrorDeUsuario('La venta ya está anulada');
-    if (venta.estado !== 'cerrada') throw new ErrorDeUsuario('Solo se anulan ventas cerradas');
-    const esNota = venta.comprobante === 'nota_credito';
-    if (!esNota) {
-      const nc = await c.query<{ numero: number }>("SELECT numero FROM ventas WHERE venta_origen_id = $1 AND estado = 'cerrada' ORDER BY numero LIMIT 1", [id]);
-      if (nc.rows[0]) throw new ErrorDeUsuario(`Esta venta tiene la nota de crédito N° ${nc.rows[0].numero}: anulala primero`);
-    }
-    const concepto = `${esNota ? 'Anulación nota de crédito' : 'Anulación venta'} N° ${venta.numero}`;
-    // Una reversión de caja se permite aunque la caja ya esté cerrada (queda en el libro, sin turno).
-    await c.query(
-      `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
-       SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, venta_id FROM caja_movimientos
-        WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
-    await c.query(
-      `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, revierte_id, usuario_id, venta_id)
-       SELECT app.tenant_id(), producto_id, 'reversion', -cantidad, $2, id, $3, venta_id FROM stock_movimientos
-        WHERE venta_id = $1 AND tipo IN ('venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
-    await c.query(
-      `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
-       SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, venta_id FROM cuenta_corriente_movimientos
-        WHERE venta_id = $1 AND tipo IN ('venta', 'nota_credito')`, [id, concepto, s.usuarioId]);
-    await c.query(`UPDATE ventas SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
-    await auditar(c, s.usuarioId, 'anular', esNota ? 'nota_credito' : 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
-  });
+  await conTenant(s.tenantId, (c) => anularEnTransaccion(c, s, id, m));
+}
+
+/** El cuerpo de la anulación, para poder hacerla dentro de otra transacción (editar una venta = anular la vieja + crear la nueva, todo o nada). */
+async function anularEnTransaccion(c: PoolClient, s: SesionActiva, id: string, m: string): Promise<void> {
+  const v = await c.query<{ numero: number; estado: string; comprobante: string }>('SELECT numero, estado, comprobante FROM ventas WHERE id = $1 FOR UPDATE', [id]);
+  const venta = v.rows[0];
+  if (!venta) throw new ErrorDeUsuario('La venta no existe');
+  if (venta.estado === 'anulada') throw new ErrorDeUsuario('La venta ya está anulada');
+  if (venta.estado !== 'cerrada') throw new ErrorDeUsuario('Solo se anulan ventas cerradas');
+  const esNota = venta.comprobante === 'nota_credito';
+  if (!esNota) {
+    const nc = await c.query<{ numero: number }>("SELECT numero FROM ventas WHERE venta_origen_id = $1 AND estado = 'cerrada' ORDER BY numero LIMIT 1", [id]);
+    if (nc.rows[0]) throw new ErrorDeUsuario(`Esta venta tiene la nota de crédito N° ${nc.rows[0].numero}: anulala primero`);
+  }
+  const concepto = `${esNota ? 'Anulación nota de crédito' : 'Anulación venta'} N° ${venta.numero}`;
+  // Una reversión de caja se permite aunque la caja ya esté cerrada (queda en el libro, sin turno).
+  await c.query(
+    `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
+     SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, venta_id FROM caja_movimientos
+      WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
+  await c.query(
+    `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, revierte_id, usuario_id, venta_id)
+     SELECT app.tenant_id(), producto_id, 'reversion', -cantidad, $2, id, $3, venta_id FROM stock_movimientos
+      WHERE venta_id = $1 AND tipo IN ('venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
+  await c.query(
+    `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
+     SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, venta_id FROM cuenta_corriente_movimientos
+      WHERE venta_id = $1 AND tipo IN ('venta', 'nota_credito')`, [id, concepto, s.usuarioId]);
+  await c.query(`UPDATE ventas SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
+  await auditar(c, s.usuarioId, 'anular', esNota ? 'nota_credito' : 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
 }
 
 // ───────── Nota de crédito (devolución de una venta) ─────────
@@ -482,4 +493,55 @@ export async function emitirNotaCredito(s: SesionActiva, entrada: unknown): Prom
     await auditar(c, s.usuarioId, 'emitir', 'nota_credito', { numero, origen: origen.numero, total: deCentavos(calc.total), cobro: d.cobro.tipo }, { entidadId: ncId });
     return { id: ncId, numero, total: deCentavos(calc.total), repetida: false };
   });
+}
+
+// ───────── Editar una venta cerrada ─────────
+export interface DatosParaEditar { numero: number; datos: Borrador; cliente: ClienteParaVenta }
+
+const ARG = (f: Date) => {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(f).reduce<Record<string, string>>((a, x) => { a[x.type] = x.value; return a; }, {});
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+};
+
+/** Arma el formulario de venta con los datos de una venta cerrada, para corregirla. Al cerrarlo, la original se anula y la nueva la reemplaza. */
+export async function datosParaEditar(s: SesionActiva, ventaId: string): Promise<DatosParaEditar | null> {
+  exigir(s, 'ventas');
+  if (!UUID.test(ventaId)) return null;
+  return conTenant(s.tenantId, async (c) => {
+    const v = await c.query(
+      `SELECT v.*, v.total::text AS total_t, v.descuento_pct::text AS dpct_t FROM ventas v
+        WHERE v.id = $1 AND v.estado = 'cerrada' AND v.comprobante <> 'nota_credito'
+          AND NOT EXISTS (SELECT 1 FROM ventas n WHERE n.venta_origen_id = v.id AND n.estado = 'cerrada')`, [ventaId]);
+    const f = v.rows[0];
+    if (!f) return null;
+    const rg = await c.query(
+      `SELECT r.producto_id, r.descripcion, r.cantidad::text, r.precio::text, r.descuento_pct::text, r.iva::text,
+              (SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = r.producto_id)::numeric(14,3)::text AS stock
+         FROM venta_renglones r WHERE r.venta_id = $1 ORDER BY r.orden`, [ventaId]);
+    const cl = await c.query(
+      `SELECT c.id, c.nombre, c.es_consumidor_final, k.lista_id, COALESCE(k.descuento, 0)::text AS descuento, COALESCE(k.cuenta_corriente, false) AS cc,
+              COALESCE((SELECT sum(m.importe) FROM cuenta_corriente_movimientos m WHERE m.cliente_id = c.id), 0)::numeric(14,2)::text AS saldo
+         FROM clientes c LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id WHERE c.id = $1`, [f.cliente_id]);
+    const x = cl.rows[0];
+    if (!x) return null;
+    const pct = String(Number(f.dpct_t));
+    const datos: Borrador = {
+      clienteId: f.cliente_id, comprobante: f.comprobante, nroComprobante: f.nro_comprobante ?? '', listaId: f.lista_id, fecha: ARG(f.fecha),
+      modoDesc: 'pct', descTotal: pct, totalFinal: '', cobroTipo: f.en_cuenta_corriente ? 'cuenta_corriente' : 'caja',
+      medioId: f.medio_pago_id ?? '', cajaId: f.caja_id ?? '', nota: f.nota ?? '', total: f.total_t, pedido: false, entrega: '',
+      // Al anular la original, lo vendido vuelve al stock: el aviso de stock negativo se calcula con eso ya devuelto.
+      renglones: rg.rows.map((r) => ({
+        productoId: r.producto_id, descripcion: r.descripcion, cantidad: r.cantidad, precio: r.precio, descuentoPct: String(Number(r.descuento_pct)), iva: Number(r.iva),
+        stock: r.producto_id ? String(Number(r.stock) + Number(r.cantidad)) : null,
+      })),
+    };
+    const cliente: ClienteParaVenta = { id: x.id, nombre: x.nombre, saldo: x.saldo, listaId: x.lista_id, descuento: Number(x.descuento), cuentaCorriente: x.cc && !x.es_consumidor_final, esConsumidorFinal: x.es_consumidor_final };
+    return { numero: f.numero, datos, cliente };
+  });
+}
+
+/** Nombre del comercio, para los comprobantes. */
+export async function nombreDelComercio(s: SesionActiva): Promise<string> {
+  return conTenant(s.tenantId, async (c) => (await c.query<{ nombre: string }>('SELECT nombre FROM tenants WHERE id = app.tenant_id()')).rows[0]?.nombre ?? s.comercio);
 }

@@ -3,25 +3,30 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../lib/estilos.ts';
 import { movimientoAccion, revertirAccion } from './personas.ts';
+import { registrarDevolucionAccion } from './devoluciones/acciones.ts';
 import { registrarReciboAccion } from './recibos/acciones.ts';
 
 export interface Fila {
   id: string; fecha: string; tipo: string; importe: string; importeCrudo: string; concepto: string; revertido: boolean; usuario: string;
-  saldo: string; ventaId: string | null; reciboId: string | null;
+  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null;
 }
 export interface MedioCobro { id: string; nombre: string; cajas: { id: string; nombre: string }[] }
-const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo' };
+const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo', nota_credito: 'Nota de crédito', devolucion_pago: 'Devolución de pago' };
 
 interface Props {
   tipo: 'cliente' | 'proveedor'; id: string; saldo: string; filas: Fila[]; puedeOperar: boolean;
   /** Solo clientes: medios de cobro para registrar recibos de pago. */
   medios?: MedioCobro[];
+  /** Solo clientes con saldo a favor: lo máximo que se les puede devolver (importe sin signo, ej. "1500.00"). */
+  saldoAFavor?: string | null;
 }
 
-export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios }: Props) {
+export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios, saldoAFavor }: Props) {
   const [abierta, setAbierta] = useState(false);
   const [f, setF] = useState({ tipo: 'ajuste', importe: '', concepto: '' });
   const [rec, setRec] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '', ventaId: null as string | null });
+  const [dev, setDev] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '' });
+  const [claveDev, setClaveDev] = useState(() => crypto.randomUUID());
   const [clave, setClave] = useState(() => crypto.randomUUID());
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
@@ -51,6 +56,15 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
       setClave(crypto.randomUUID());
       setRec({ ...rec, abierto: false, importe: '', nota: '', ventaId: null });
     });
+  const medioDev = medios?.find((m) => m.id === dev.medioId);
+  const devolver = () =>
+    iniciar(async () => {
+      setMsg(null);
+      const r = await registrarDevolucionAccion({ clave: claveDev, clienteId: id, importe: dev.importe, medioPagoId: dev.medioId, cajaId: dev.cajaId, nota: dev.nota });
+      if (r.error) { setMsg(r.error); return; }
+      setClaveDev(crypto.randomUUID());
+      setDev({ ...dev, abierto: false, importe: '', nota: '' });
+    });
   const conRecibos = tipo === 'cliente' && puedeOperar && !!medios && medios.length > 0;
   return (
     <div style={tarjeta}>
@@ -58,7 +72,39 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
         {abierta ? '▾' : '▸'} Cuenta corriente · saldo {saldo}
       </button>
       {tipo === 'cliente' && puedeOperar && medios && medios.length === 0 && <p style={{ fontSize: 12, color: '#5c6d66' }}>Para registrar un recibo hace falta una caja abierta con un medio de pago habilitado.</p>}
-      {conRecibos && !rec.abierto && <div style={{ marginTop: 8 }}><button type="button" style={boton} onClick={() => abrirRecibo()}>+ Agregar recibo de pago</button></div>}
+      {conRecibos && !rec.abierto && !dev.abierto && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" style={boton} onClick={() => abrirRecibo()}>+ Agregar recibo de pago</button>
+          {saldoAFavor && <button type="button" style={botonSecundario} onClick={() => { setAbierta(true); setDev({ ...dev, abierto: true, importe: saldoAFavor }); }}>Devolver pago (saldo a favor)</button>}
+        </div>
+      )}
+      {conRecibos && dev.abierto && saldoAFavor && (
+        <div style={{ marginTop: 10, padding: 12, background: '#fff8ec', borderRadius: 8 }}>
+          <b>Devolución de pago</b>
+          {msg && <div style={estiloError}>{msg}</div>}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+            <label style={{ ...etiqueta, flex: '1 1 120px', marginBottom: 0 }}>Importe a devolver
+              <input style={campo} inputMode="decimal" value={dev.importe} onChange={(e) => setDev({ ...dev, importe: e.target.value })} />
+            </label>
+            <label style={{ ...etiqueta, flex: '1 1 140px', marginBottom: 0 }}>Medio de pago
+              <select style={campo} value={dev.medioId} onChange={(e) => setDev({ ...dev, medioId: e.target.value, cajaId: medios?.find((m) => m.id === e.target.value)?.cajas[0]?.id ?? '' })}>
+                {medios!.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
+            </label>
+            <label style={{ ...etiqueta, flex: '1 1 140px', marginBottom: 0 }}>Caja de donde sale
+              <select style={campo} value={dev.cajaId} onChange={(e) => setDev({ ...dev, cajaId: e.target.value })}>
+                {(medioDev?.cajas ?? []).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </label>
+            <label style={{ ...etiqueta, flex: '2 1 200px', marginBottom: 0 }}>Comentario
+              <input style={campo} value={dev.nota} onChange={(e) => setDev({ ...dev, nota: e.target.value })} />
+            </label>
+          </div>
+          <p style={{ fontSize: 12, color: '#5c6d66' }}>Sale de la caja elegida y baja el saldo a favor del cliente. Como máximo se puede devolver ${saldoAFavor}.</p>
+          <button type="button" style={boton} disabled={pend} onClick={devolver}>{pend ? 'Registrando…' : 'Registrar devolución'}</button>{' '}
+          <button type="button" style={botonSecundario} disabled={pend} onClick={() => setDev({ ...dev, abierto: false })}>Cancelar</button>
+        </div>
+      )}
       {conRecibos && rec.abierto && (
         <div style={{ marginTop: 10, padding: 12, background: '#f0f8f5', borderRadius: 8 }}>
           <b>Recibo de pago</b>
@@ -91,7 +137,7 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
           <p style={{ fontSize: 12, color: '#5c6d66' }}>
             Saldo positivo = {tipo === 'cliente' ? 'el cliente nos debe' : 'le debemos al proveedor'}; negativo = saldo a favor. Los movimientos no se editan: se corrigen con una reversión. La columna «Saldo» es lo que quedó después de cada movimiento.
           </p>
-          {msg && !rec.abierto && <div style={estiloError}>{msg}</div>}
+          {msg && !rec.abierto && !dev.abierto && <div style={estiloError}>{msg}</div>}
           {puedeOperar && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 10 }}>
               <label style={{ ...etiqueta, flex: '1 1 140px', marginBottom: 0 }}>Tipo
@@ -118,9 +164,12 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
                     <td style={celda}>{m.concepto}</td><td style={celda}>{m.importe}</td><td style={{ ...celda, fontWeight: 600 }}>{m.saldo}</td><td style={celda}>{m.usuario}</td>
                     <td style={celda}>
                       {m.ventaId && <Link href={`/ventas/${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver venta</Link>}
+                      {m.ventaId && m.tipo === 'venta' && !m.revertido && puedeOperar && <Link href={`/ventas/nueva?editar=${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Editar</Link>}
+                      {m.ventaId && !m.revertido && ['venta', 'nota_credito'].includes(m.tipo) && <Link href={`/comprobante/ventas/${m.ventaId}`} target="_blank" style={{ color: '#1c9764', marginRight: 8 }}>Comprobante / PDF</Link>}
                       {m.reciboId && <Link href={`/recibos/${m.reciboId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver recibo</Link>}
+                      {m.devolucionId && <Link href={`/devoluciones/${m.devolucionId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver devolución</Link>}
                       {conRecibos && m.tipo === 'venta' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirRecibo(m)}>Agregar recibo de pago</button>)}
-                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
+                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito', 'devolucion_pago'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
                     </td>
                   </tr>
                 ))}

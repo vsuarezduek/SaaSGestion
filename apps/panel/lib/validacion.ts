@@ -207,6 +207,7 @@ export const esquemaMedioPago = z.object({
 export const esquemaVenta = z.object({
   clave: z.string().uuid(),
   abiertaId: z.string().uuid().nullable().default(null),   // si la venta salió de una venta abierta, esa se da por cerrada
+  reemplazaVentaId: z.string().uuid().nullable().default(null), // si es la edición de una venta cerrada: esa se anula y esta la reemplaza
   clienteId: z.string().uuid(),
   comprobante: z.enum(COMPROBANTES),
   nroComprobante: textoOpcional(30),
@@ -264,6 +265,17 @@ export const esquemaRecibo = z.object({
   nota: textoOpcional(500),
 });
 export type DatosRecibo = z.infer<typeof esquemaRecibo>;
+
+// ───────── Devolución de pago (saldo a favor del cliente) ─────────
+export const esquemaDevolucionPago = z.object({
+  clave: z.string().uuid(),
+  clienteId: z.string().uuid(),
+  importe: importePositivo('Importe'),
+  medioPagoId: z.string().uuid(),
+  cajaId: z.string().uuid(),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+});
 
 // ───────── Ventas abiertas (borradores) ─────────
 const corto = (max: number) => z.string().max(max);

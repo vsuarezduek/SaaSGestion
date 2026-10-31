@@ -273,7 +273,7 @@ export type Titular = { cliente: string } | { proveedor: string };
 
 export interface Movimiento {
   id: string; tipo: string; importe: string; concepto: string | null; revierteId: string | null; revertido: boolean; creadoEn: Date; usuario: string | null;
-  saldo: string; ventaId: string | null; reciboId: string | null; // saldo = lo que quedó después de este movimiento
+  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null; // saldo = lo que quedó después de este movimiento
 }
 
 export async function movimientosDe(s: SesionActiva, t: Titular, limite = 50): Promise<Movimiento[]> {
@@ -283,7 +283,7 @@ export async function movimientosDe(s: SesionActiva, t: Titular, limite = 50): P
   return conTenant(s.tenantId, async (c) => {
     const r = await c.query(
       `SELECT * FROM (
-         SELECT m.id, m.id::text AS id_t, m.tipo, m.importe::text, m.concepto, m.revierte_id::text, m.creado_en, u.nombre AS usuario, m.venta_id, m.recibo_id,
+         SELECT m.id, m.id::text AS id_t, m.tipo, m.importe::text, m.concepto, m.revierte_id::text, m.creado_en, u.nombre AS usuario, m.venta_id, m.recibo_id, m.devolucion_id,
                 sum(m.importe) OVER (ORDER BY m.id)::numeric(14,2)::text AS saldo,
                 EXISTS (SELECT 1 FROM cuenta_corriente_movimientos x WHERE x.revierte_id = m.id) AS revertido
            FROM cuenta_corriente_movimientos m LEFT JOIN usuarios u ON u.id = m.usuario_id
@@ -291,7 +291,7 @@ export async function movimientosDe(s: SesionActiva, t: Titular, limite = 50): P
         ORDER BY id DESC LIMIT ${Math.min(Math.max(limite, 1), 500)}`,
       [id],
     );
-    return r.rows.map((f) => ({ id: f.id_t, tipo: f.tipo, importe: f.importe, concepto: f.concepto, revierteId: f.revierte_id, revertido: f.revertido, creadoEn: f.creado_en, usuario: f.usuario, saldo: f.saldo, ventaId: f.venta_id, reciboId: f.recibo_id }));
+    return r.rows.map((f) => ({ id: f.id_t, tipo: f.tipo, importe: f.importe, concepto: f.concepto, revierteId: f.revierte_id, revertido: f.revertido, creadoEn: f.creado_en, usuario: f.usuario, saldo: f.saldo, ventaId: f.venta_id, reciboId: f.recibo_id, devolucionId: f.devolucion_id }));
   });
 }
 
@@ -334,7 +334,7 @@ export async function revertirMovimiento(s: SesionActiva, t: Titular, movimiento
     const orig = o.rows[0];
     if (!orig) throw new ErrorDeUsuario('El movimiento no existe');
     if (orig.tipo === 'reversion') throw new ErrorDeUsuario('Una reversión no se puede revertir');
-    if (orig.tipo === 'venta' || orig.tipo === 'recibo' || orig.tipo === 'nota_credito') throw new ErrorDeUsuario('Este movimiento viene de una venta, un recibo o una nota de crédito: se anula desde ahí');
+    if (orig.tipo === 'venta' || orig.tipo === 'recibo' || orig.tipo === 'nota_credito' || orig.tipo === 'devolucion_pago') throw new ErrorDeUsuario('Este movimiento viene de una venta, un recibo, una nota de crédito o una devolución: se anula desde ahí');
     try {
       const inverso = orig.importe.startsWith('-') ? orig.importe.slice(1) : '-' + orig.importe;
       const id = await insertarMovimiento(c, s, t, 'reversion', inverso, concepto?.trim().slice(0, 200) || 'Reversión', movimientoId);

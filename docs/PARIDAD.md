@@ -33,10 +33,10 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Consumidor Final | ✅ | |
 | Cuenta corriente como libro de solo agregar, saldo inicial, ajustes, reversión | ✅ | |
 | **Historial con saldo en cada movimiento** | ✅ | Cuenta corriente de cliente y proveedor |
-| Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | 🟡 | Hay "Agregar recibo de pago" y enlace a la venta; "Eliminar" = anular desde el detalle; falta Editar y Compartir |
+| Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | 🟡 | Hay "Agregar recibo de pago", "Editar", "Comprobante / PDF" y enlace a la venta; "Eliminar" = anular desde el detalle; falta Editar y Compartir |
 | Recibos de cuenta corriente (clientes) | ✅ | Anulables |
 | Órdenes de pago a proveedores | ⬜ | Con Compras |
-| Devolución de pago | ⬜ | |
+| Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
 | Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ⬜ | v42 |
 | Proveedor: productos del proveedor, cargar compra de faltantes | ⬜ | |
 | Informes de clientes y proveedores (deudores, top 10, etc.) | ⬜ | |
@@ -56,11 +56,11 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ✅ | v43–v44. Alternador % / $ total, con el ajuste en ambas unidades (D-013 ampliada) |
 | Enter en precio/descuento salta a buscar otro producto | ⬜ | v42 |
 | Productos nuevos arriba y cursor en cantidad | 🟡 | Verificar |
-| Editar una venta cerrada | ⬜ | En el sistema real: anular + cargar la corregida precargada |
+| Editar una venta cerrada | ✅ | D-020. Anula la original y crea la nueva en una sola transacción |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
 | Nota de crédito y devolución | 🟡 | D-018. Desde la venta, con devolución a caja o cuenta corriente. Falta nota sin venta de origen y comprobante electrónico |
-| PDF y email del comprobante (con IVA detallado) | ⬜ | |
+| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. Comprobante imprimible / "Guardar como PDF" con IVA por alícuota. Falta el email (necesita un servicio de correo) |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
 ## Compras
@@ -101,7 +101,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Costos fijos | ⬜ | |
 
 ## Orden sugerido
-1. **Ventas, segunda entrega:** devolución de pago, PDF/email, "editar" por anular y recargar.
+1. **Ventas, segunda entrega:** ✅ casi completa (falta el email del comprobante y la nota de crédito sin venta de origen).
 2. **Compras** y **órdenes de pago** (espejo de ventas y recibos).
 3. **Productos:** datos extras, edición en la misma página, historial, masiva, CSV, listas, informe filtrado.
 4. **Recetas, elaboración y costos fijos.**
