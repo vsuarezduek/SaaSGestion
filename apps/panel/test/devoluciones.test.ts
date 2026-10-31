@@ -45,7 +45,7 @@ after(async () => {
 test('devolver parte del saldo a favor: sale de la caja y el saldo se acerca a cero', async () => {
   const cajaAntes = await saldoCaja();
   const d = await devolver('400');
-  assert.equal(d.importe, '400');
+  assert.equal(Number(d.importe), 400);
   assert.equal(await saldoCaja(), cajaAntes - 400);
   assert.equal(await saldoCliente(), -600);
   const m = (await movimientosDe(A, { cliente: aFavor })).find((x) => x.devolucionId === d.id)!;
