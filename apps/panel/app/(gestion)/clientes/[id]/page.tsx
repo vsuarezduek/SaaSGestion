@@ -38,7 +38,7 @@ export default async function FichaCliente({ params }: { params: Promise<{ id: s
       )}
       <CuentaCorriente
         tipo="cliente" id={c.id} saldo={formatearPesos(aCentavos(c.saldo))} saldoAFavor={c.saldo.startsWith('-') ? c.saldo.slice(1) : null} puedeOperar={!c.esConsumidorFinal} medios={medios}
-        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId, devolucionId: m.devolucionId }))}
+        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId, devolucionId: m.devolucionId, compraId: null, ordenPagoId: null }))}
       />
       <FormularioPersona
         tipo="cliente" categorias={cats.filter((x) => x.activa || x.id === c.categoriaId)}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   aCentavos, deCentavos, normalizarImporte, formatearPesos,
   precioDesdeUtilidad, utilidadDesdePrecio, precioMantenerUtilidad, ivaIncluido, esAlicuotaValida,
-  plegar, terminosDeBusqueda, escaparLike,
+  plegar, terminosDeBusqueda, escaparLike, calcularCompra, impuestoDeTransaccion,
 } from '../src/index.ts';
 
 test('importes: de texto a centavos y de vuelta, sin decimales de coma flotante', () => {
@@ -173,4 +173,37 @@ test('venta: descuento total por monto reparte el descuento y cierra exacto en e
   assert.throws(() => calcularVenta(r, { totalFinal: -1 }));
   assert.throws(() => calcularVenta(r, { totalFinal: 10.5 }));
   assert.equal(calcularVenta([], { totalFinal: 0 }).total, 0);
+});
+
+test('compra: el costo es sin IVA y el IVA se suma solo si el comprobante lo discrimina', () => {
+  const r = [{ cantidad: '10', costo: 10000, descuentoPct: 0, iva: 21 }];
+  const sin = calcularCompra(r, 0, false);
+  assert.deepEqual([sin.neto, sin.iva, sin.total], [100000, 0, 100000]);
+  const con = calcularCompra(r, 0, true);
+  assert.deepEqual([con.neto, con.iva, con.total], [100000, 21000, 121000]);
+});
+
+test('compra: descuento por renglón y descuento total, con redondeo al centavo', () => {
+  const c = calcularCompra([{ cantidad: '2', costo: 10000, descuentoPct: 10, iva: 21 }], 10, true);
+  assert.equal(c.renglones[0]!.subtotal, 18000);
+  assert.equal(c.renglones[0]!.neto, 16200);
+  assert.equal(c.descuentoTotal, 1800);
+  assert.equal(c.iva, 3402);
+  assert.equal(c.total, 19602);
+  assert.equal(calcularCompra([{ cantidad: '0.333', costo: 100, descuentoPct: 0, iva: 21 }], 0, false).total, 33);   // 33,3 → 33
+  assert.equal(calcularCompra([{ cantidad: '0.5', costo: 1, descuentoPct: 0, iva: 21 }], 0, false).total, 1);       // 0,5 → 1 (mitad hacia arriba)
+});
+
+test('compra: rechaza porcentajes, costos y cantidades inválidos', () => {
+  assert.throws(() => calcularCompra([{ cantidad: '1', costo: 100, descuentoPct: 101, iva: 21 }], 0, false));
+  assert.throws(() => calcularCompra([{ cantidad: '1', costo: 100, descuentoPct: 0, iva: 21 }], -1, false));
+  assert.throws(() => calcularCompra([{ cantidad: '1', costo: 1.5, descuentoPct: 0, iva: 21 }], 0, false));
+  assert.throws(() => calcularCompra([{ cantidad: 'x', costo: 100, descuentoPct: 0, iva: 21 }], 0, false));
+});
+
+test('impuesto por transacción: porcentaje del importe, mitad hacia arriba', () => {
+  assert.equal(impuestoDeTransaccion(100000, 1.2), 1200);
+  assert.equal(impuestoDeTransaccion(12345, 1.2), 148);   // 148,14
+  assert.equal(impuestoDeTransaccion(100000, 0), 0);
+  assert.throws(() => impuestoDeTransaccion(100, 101));
 });

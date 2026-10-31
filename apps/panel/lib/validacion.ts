@@ -277,6 +277,52 @@ export const esquemaDevolucionPago = z.object({
   nota: textoOpcional(500),
 });
 
+// ───────── Compras y órdenes de pago a proveedores ─────────
+export const COMPROBANTES_COMPRA = ['remito', 'factura_a', 'factura_b', 'sin_comprobante'] as const;
+export const MODOS_COSTOS = ['ninguno', 'costo', 'costo_y_precio'] as const;
+
+export const esquemaCompra = z.object({
+  clave: z.string().uuid(),
+  reemplazaCompraId: z.string().uuid().nullable().default(null), // edición de una compra cerrada: esa se anula y esta la reemplaza
+  proveedorId: z.string().uuid(),
+  categoria: z.string().trim().min(1, 'Elegí la categoría de la compra').max(60),
+  comprobante: z.enum(COMPROBANTES_COMPRA),
+  nroComprobante: textoOpcional(30),
+  fecha: fechaArgentina,
+  descuentoTotalPct: pct('El descuento'),
+  modoCostos: z.enum(MODOS_COSTOS),
+  nota: textoOpcional(500),
+  renglones: z
+    .array(
+      z.object({
+        productoId: z.string().uuid().nullable(),                 // null = ítem libre
+        descripcion: z.string().trim().max(200),
+        cantidad: cantidad('Cantidad', { cero: false }),
+        costo: importeNoNegativo('Costo'),                        // unitario, sin IVA
+        descuentoPct: pct('El descuento del renglón'),
+        iva: alicuota,
+      }),
+    )
+    .min(1, 'Agregá al menos un producto')
+    .max(200, 'Demasiados renglones'),
+  pago: z.discriminatedUnion('tipo', [
+    z.object({ tipo: z.literal('caja'), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('cuenta_corriente') }),
+  ]),
+});
+export type DatosCompra = z.infer<typeof esquemaCompra>;
+
+export const esquemaOrdenPago = z.object({
+  clave: z.string().uuid(),
+  proveedorId: z.string().uuid(),
+  compraId: z.string().uuid().nullable(),
+  importe: importePositivo('Importe'),
+  cajaId: z.string().uuid(),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+});
+export type DatosOrdenPago = z.infer<typeof esquemaOrdenPago>;
+
 // ───────── Ventas abiertas (borradores) ─────────
 const corto = (max: number) => z.string().max(max);
 export const esquemaBorrador = z.object({

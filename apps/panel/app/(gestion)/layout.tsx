@@ -16,8 +16,10 @@ export default async function Gestion({ children }: { children: ReactNode }) {
         <Link href="/ventas" style={enlace}>Ventas</Link>
         <Link href="/clientes" style={enlace}>Clientes</Link>
         <Link href="/proveedores" style={enlace}>Proveedores</Link>
+        <Link href="/compras" style={enlace}>Compras</Link>
         <Link href="/cajas" style={enlace}>Cajas</Link>
         <Link href="/rubros" style={enlace}>Rubros</Link>
+        <Link href="/importar" style={enlace}>Importar</Link>
       </nav>
       {children}
     </div>

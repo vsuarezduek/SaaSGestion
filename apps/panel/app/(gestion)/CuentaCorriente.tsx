@@ -5,13 +5,14 @@ import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta 
 import { movimientoAccion, revertirAccion } from './personas.ts';
 import { registrarDevolucionAccion } from './devoluciones/acciones.ts';
 import { registrarReciboAccion } from './recibos/acciones.ts';
+import { registrarOrdenPagoAccion } from './ordenes-pago/acciones.ts';
 
 export interface Fila {
   id: string; fecha: string; tipo: string; importe: string; importeCrudo: string; concepto: string; revertido: boolean; usuario: string;
-  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null;
+  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null; compraId: string | null; ordenPagoId: string | null;
 }
 export interface MedioCobro { id: string; nombre: string; cajas: { id: string; nombre: string }[] }
-const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo', nota_credito: 'Nota de crédito', devolucion_pago: 'Devolución de pago' };
+const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo', nota_credito: 'Nota de crédito', devolucion_pago: 'Devolución de pago', compra: 'Compra', orden_pago: 'Orden de pago' };
 
 interface Props {
   tipo: 'cliente' | 'proveedor'; id: string; saldo: string; filas: Fila[]; puedeOperar: boolean;
@@ -19,13 +20,17 @@ interface Props {
   medios?: MedioCobro[];
   /** Solo clientes con saldo a favor: lo máximo que se les puede devolver (importe sin signo, ej. "1500.00"). */
   saldoAFavor?: string | null;
+  /** Solo proveedores: cajas abiertas desde las que se puede pagar (órdenes de pago). */
+  cajasPago?: { id: string; nombre: string }[];
 }
 
-export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios, saldoAFavor }: Props) {
+export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios, saldoAFavor, cajasPago }: Props) {
   const [abierta, setAbierta] = useState(false);
   const [f, setF] = useState({ tipo: 'ajuste', importe: '', concepto: '' });
   const [rec, setRec] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '', ventaId: null as string | null });
   const [dev, setDev] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '' });
+  const [ord, setOrd] = useState({ abierto: false, importe: '', cajaId: cajasPago?.[0]?.id ?? '', nota: '', compraId: null as string | null });
+  const [claveOrd, setClaveOrd] = useState(() => crypto.randomUUID());
   const [claveDev, setClaveDev] = useState(() => crypto.randomUUID());
   const [clave, setClave] = useState(() => crypto.randomUUID());
   const [msg, setMsg] = useState<string | null>(null);
@@ -65,6 +70,19 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
       setClaveDev(crypto.randomUUID());
       setDev({ ...dev, abierto: false, importe: '', nota: '' });
     });
+  const abrirOrden = (fila?: Fila) => {
+    setAbierta(true);
+    setOrd({ ...ord, abierto: true, importe: fila ? fila.importeCrudo : '', nota: fila ? `Orden de pago s/ ${fila.concepto}` : '', compraId: fila?.compraId ?? null });
+  };
+  const pagar = () =>
+    iniciar(async () => {
+      setMsg(null);
+      const r = await registrarOrdenPagoAccion({ clave: claveOrd, proveedorId: id, compraId: ord.compraId, importe: ord.importe, cajaId: ord.cajaId, nota: ord.nota });
+      if (r.error) { setMsg(r.error); return; }
+      setClaveOrd(crypto.randomUUID());
+      setOrd({ ...ord, abierto: false, importe: '', nota: '', compraId: null });
+    });
+  const conOrdenes = tipo === 'proveedor' && puedeOperar && !!cajasPago && cajasPago.length > 0;
   const conRecibos = tipo === 'cliente' && puedeOperar && !!medios && medios.length > 0;
   return (
     <div style={tarjeta}>
@@ -72,6 +90,34 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
         {abierta ? '▾' : '▸'} Cuenta corriente · saldo {saldo}
       </button>
       {tipo === 'cliente' && puedeOperar && medios && medios.length === 0 && <p style={{ fontSize: 12, color: '#5c6d66' }}>Para registrar un recibo hace falta una caja abierta con un medio de pago habilitado.</p>}
+      {tipo === 'proveedor' && puedeOperar && cajasPago && cajasPago.length === 0 && <p style={{ fontSize: 12, color: '#5c6d66' }}>Para registrar una orden de pago hace falta una caja abierta.</p>}
+      {conOrdenes && !ord.abierto && (
+        <div style={{ marginTop: 8 }}>
+          <button type="button" style={boton} onClick={() => abrirOrden()}>+ Agregar orden de pago</button>
+        </div>
+      )}
+      {conOrdenes && ord.abierto && (
+        <div style={{ marginTop: 10, padding: 12, background: '#f0f8f5', borderRadius: 8 }}>
+          <b>Orden de pago</b>
+          {msg && <div style={estiloError}>{msg}</div>}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
+            <label style={{ ...etiqueta, flex: '1 1 120px', marginBottom: 0 }}>Importe
+              <input style={campo} inputMode="decimal" value={ord.importe} onChange={(e) => setOrd({ ...ord, importe: e.target.value })} />
+            </label>
+            <label style={{ ...etiqueta, flex: '1 1 160px', marginBottom: 0 }}>Pagar desde
+              <select style={campo} value={ord.cajaId} onChange={(e) => setOrd({ ...ord, cajaId: e.target.value })}>
+                {cajasPago!.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </label>
+            <label style={{ ...etiqueta, flex: '2 1 200px', marginBottom: 0 }}>Comentario
+              <input style={campo} value={ord.nota} onChange={(e) => setOrd({ ...ord, nota: e.target.value })} />
+            </label>
+          </div>
+          <p style={{ fontSize: 12, color: '#5c6d66' }}>Sale de la caja elegida (más el impuesto por transacción de esa caja, si tiene) y baja lo que se le debe al proveedor. Puede ser un pago parcial.</p>
+          <button type="button" style={boton} disabled={pend} onClick={pagar}>{pend ? 'Registrando…' : 'Registrar orden de pago'}</button>{' '}
+          <button type="button" style={botonSecundario} disabled={pend} onClick={() => setOrd({ ...ord, abierto: false })}>Cancelar</button>
+        </div>
+      )}
       {conRecibos && !rec.abierto && !dev.abierto && (
         <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" style={boton} onClick={() => abrirRecibo()}>+ Agregar recibo de pago</button>
@@ -137,7 +183,7 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
           <p style={{ fontSize: 12, color: '#5c6d66' }}>
             Saldo positivo = {tipo === 'cliente' ? 'el cliente nos debe' : 'le debemos al proveedor'}; negativo = saldo a favor. Los movimientos no se editan: se corrigen con una reversión. La columna «Saldo» es lo que quedó después de cada movimiento.
           </p>
-          {msg && !rec.abierto && !dev.abierto && <div style={estiloError}>{msg}</div>}
+          {msg && !rec.abierto && !dev.abierto && !ord.abierto && <div style={estiloError}>{msg}</div>}
           {puedeOperar && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 10 }}>
               <label style={{ ...etiqueta, flex: '1 1 140px', marginBottom: 0 }}>Tipo
@@ -166,10 +212,14 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
                       {m.ventaId && <Link href={`/ventas/${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver venta</Link>}
                       {m.ventaId && m.tipo === 'venta' && !m.revertido && puedeOperar && <Link href={`/ventas/nueva?editar=${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Editar</Link>}
                       {m.ventaId && !m.revertido && ['venta', 'nota_credito'].includes(m.tipo) && <Link href={`/comprobante/ventas/${m.ventaId}`} target="_blank" style={{ color: '#1c9764', marginRight: 8 }}>Comprobante / PDF</Link>}
+                      {m.compraId && <Link href={`/compras/${m.compraId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver compra</Link>}
+                      {m.compraId && m.tipo === 'compra' && !m.revertido && puedeOperar && <Link href={`/compras/nueva?editar=${m.compraId}`} style={{ color: '#1c9764', marginRight: 8 }}>Editar</Link>}
+                      {m.ordenPagoId && <Link href={`/ordenes-pago/${m.ordenPagoId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver orden de pago</Link>}
                       {m.reciboId && <Link href={`/recibos/${m.reciboId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver recibo</Link>}
                       {m.devolucionId && <Link href={`/devoluciones/${m.devolucionId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver devolución</Link>}
                       {conRecibos && m.tipo === 'venta' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirRecibo(m)}>Agregar recibo de pago</button>)}
-                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito', 'devolucion_pago'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
+                      {conOrdenes && m.tipo === 'compra' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirOrden(m)}>Agregar orden de pago</button>)}
+                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito', 'devolucion_pago', 'compra', 'orden_pago'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
                     </td>
                   </tr>
                 ))}

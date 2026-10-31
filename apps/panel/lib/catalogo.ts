@@ -15,7 +15,7 @@ export interface Lista {
 
 const LISTAS_INICIALES = ['Minorista', 'Mayorista'];
 
-async function listasEn(c: PoolClient): Promise<Lista[]> {
+export async function listasEn(c: PoolClient): Promise<Lista[]> {
   const r = await c.query<Lista>('SELECT id, nombre FROM listas_precios WHERE activa ORDER BY orden, nombre');
   if (r.rows.length > 0) return r.rows;
   // Primer uso del comercio: se crean las listas básicas (después se pueden renombrar o agregar).

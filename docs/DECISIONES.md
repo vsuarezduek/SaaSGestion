@@ -129,3 +129,19 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Decisión:** el comprobante de una venta o nota de crédito es una página limpia (`/comprobante/ventas/[id]`) con el nombre del comercio, los renglones y, en las facturas, el neto gravado y el IVA por alícuota. El PDF sale del "Guardar como PDF" del navegador: no se agregan dependencias.
 - **Pendiente:** el email del comprobante necesita un servicio de correo (proveedor, remitente y clave como variable de entorno): se decide aparte. La factura electrónica con CAE llega con la integración de ARCA.
 
+
+## D-022 · Compras, órdenes de pago y costos
+- **Estado:** Aceptada para la etapa 1 (migración 0014). Agrega `compra` a stock, `pago_compra`/`impuesto_compra`/`pago_orden`/`impuesto_orden` a caja y `compra`/`orden_pago` a cuenta corriente (como D-013 y D-015).
+- **Decisión:** una compra es el espejo de la venta. El costo se carga **sin IVA**; el IVA se suma solo si el comprobante es factura A o B. Cerrar una compra es una sola transacción: compra, renglones, stock (+), y la salida de una caja abierta (más el impuesto por transacción de esa caja) **o** deuda en la cuenta corriente del proveedor, nunca las dos. La misma clave no duplica la compra.
+- **Costos y precios:** al cerrar se elige entre no tocar nada, actualizar el costo, o actualizar costo y precio manteniendo la utilidad (precio × costo nuevo ÷ costo anterior). El costo nuevo descuenta el porcentaje del renglón. Anular una compra **no** restaura costos ni precios (pudieron cambiar después): se corrigen desde el producto.
+- **Órdenes de pago:** espejo del recibo. Salen de una caja abierta (con el impuesto de esa caja), bajan la deuda con el proveedor y pueden indicar la compra que pagan (informativo: el saldo es del proveedor). Se anulan con movimientos inversos.
+- **Editar/anular:** editar una compra cerrada la anula y crea otra en la misma transacción. Compras y órdenes anuladas no se modifican; no se borra nada. Los movimientos originados en un comprobante no se revierten a mano desde la cuenta corriente.
+- **Pendiente:** compras abiertas (borradores), nota de crédito de proveedor.
+
+## D-023 · Importación de listas por CSV
+- **Estado:** Aceptada para la etapa 1. No cambia el modelo de datos.
+- **Decisión:** clientes, proveedores y productos se importan desde un CSV (coma, punto y coma o tabulación; exportable desde Excel). Los encabezados se reconocen por nombre sin importar acentos o mayúsculas; hay plantilla descargable. Siempre hay **vista previa** (se ejecuta y se deshace) antes de importar de verdad.
+- **Reglas:** se reconoce un registro existente por CUIT o nombre (personas) y por código o nombre (productos). Por defecto los existentes se omiten; con "actualizar" solo se cambia lo que el archivo trae con dato (una celda vacía no borra). El saldo y el stock inicial se cargan solo en registros nuevos, como movimientos `saldo_inicial`, para que reimportar nunca duplique. Los rubros se crean desde la ruta "A > B". Un error en una fila no frena las demás y se informa con su número. Máximo 3.000 filas por archivo. Todo queda auditado.
+
+## Nota operativa · base de producción
+La base de producción (Neon, rama `main`) está reservada y vacía a propósito: las migraciones se aplican en las vistas previas (staging). Por eso el dominio de producción muestra error hasta el lanzamiento. Las migraciones **no** se aplican a producción sin autorización expresa.
