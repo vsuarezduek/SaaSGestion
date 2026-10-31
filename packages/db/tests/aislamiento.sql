@@ -445,4 +445,68 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM devoluciones_pago) <> 0 THEN RAISE EXCEPTION 'B ve devoluciones de A'; END IF;
 END $$;
 
+-- 20) Compras y órdenes de pago: aisladas, no se borran, renglones inmutables, pago en caja XOR cuenta corriente; los libros aceptan sus movimientos.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO cajas (tenant_id, nombre, tipo) VALUES (app.tenant_id(), 'Caja compras', 'efectivo');
+INSERT INTO categorias_compra (tenant_id, nombre) VALUES (app.tenant_id(), 'Mercadería');
+DO $$ DECLARE p uuid; k uuid; cp uuid; op uuid; pr uuid; BEGIN
+  SELECT id INTO p FROM proveedores WHERE nombre = 'Proveedor A';
+  SELECT id INTO k FROM cajas WHERE nombre = 'Caja compras';
+  SELECT id INTO pr FROM productos WHERE codigo = 'A1';
+  INSERT INTO compras (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, total, caja_id)
+    VALUES (app.tenant_id(), 1, p, 'remito', 100, 100, 100, k) RETURNING id INTO cp;
+  INSERT INTO compra_renglones (tenant_id, compra_id, orden, producto_id, descripcion, cantidad, costo, iva, subtotal, neto)
+    VALUES (app.tenant_id(), cp, 1, pr, 'Almendras', 1, 100, 21, 100, 100);
+  BEGIN
+    INSERT INTO compras (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, total, en_cuenta_corriente, caja_id)
+      VALUES (app.tenant_id(), 2, p, 'remito', 1, 1, 1, true, k);
+    RAISE EXCEPTION 'permitió una compra en caja y en cuenta corriente a la vez';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO compras (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, total)
+      VALUES (app.tenant_id(), 3, p, 'remito', 1, 1, 1);
+    RAISE EXCEPTION 'permitió una compra sin forma de pago';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO compras (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, total, en_cuenta_corriente)
+      VALUES (app.tenant_id(), 1, p, 'remito', 1, 1, 1, true);
+    RAISE EXCEPTION 'permitió repetir el número de compra';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN DELETE FROM compras; RAISE EXCEPTION 'permitió borrar una compra';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE compras SET total = 999; RAISE EXCEPTION 'permitió cambiar el total de una compra cerrada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE compra_renglones SET cantidad = 9; RAISE EXCEPTION 'permitió cambiar un renglón de compra';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM compra_renglones; RAISE EXCEPTION 'permitió borrar un renglón de compra';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  -- Los libros aceptan los tipos nuevos.
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, compra_id) VALUES (app.tenant_id(), pr, 'compra', 1, cp);
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, proveedor_id, tipo, importe, compra_id) VALUES (app.tenant_id(), p, 'compra', 100, cp);
+  INSERT INTO ordenes_pago (tenant_id, numero, proveedor_id, compra_id, importe, caja_id)
+    VALUES (app.tenant_id(), 1, p, cp, 50, k) RETURNING id INTO op;
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, proveedor_id, tipo, importe, orden_pago_id) VALUES (app.tenant_id(), p, 'orden_pago', -50, op);
+  BEGIN
+    INSERT INTO ordenes_pago (tenant_id, numero, proveedor_id, importe, caja_id) VALUES (app.tenant_id(), 2, p, 0, k);
+    RAISE EXCEPTION 'permitió una orden de pago de importe 0';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN DELETE FROM ordenes_pago; RAISE EXCEPTION 'permitió borrar una orden de pago';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE ordenes_pago SET importe = 999; RAISE EXCEPTION 'permitió cambiar el importe de una orden cerrada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  UPDATE ordenes_pago SET estado = 'anulada', anulada_en = now();
+  BEGIN UPDATE ordenes_pago SET nota = 'x'; RAISE EXCEPTION 'permitió tocar una orden anulada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  UPDATE compras SET estado = 'anulada', anulada_en = now() WHERE id = cp;
+  BEGIN UPDATE compras SET nota = 'x'; RAISE EXCEPTION 'permitió tocar una compra anulada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM compras) <> 0 THEN RAISE EXCEPTION 'B ve compras de A'; END IF;
+  IF (SELECT count(*) FROM compra_renglones) <> 0 THEN RAISE EXCEPTION 'B ve renglones de A'; END IF;
+  IF (SELECT count(*) FROM ordenes_pago) <> 0 THEN RAISE EXCEPTION 'B ve órdenes de pago de A'; END IF;
+  IF (SELECT count(*) FROM categorias_compra) <> 0 THEN RAISE EXCEPTION 'B ve categorías de compra de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

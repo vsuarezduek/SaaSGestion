@@ -20,7 +20,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Los datos extras se muestran al final de la página del producto | ⬜ | v43 |
 | Historial de ventas y compras del producto | ⬜ | |
 | Modificación masiva (por proveedor/rubro/lista, % o $) | ⬜ | |
-| Exportar/importar CSV (por código, crear inexistentes) | ⬜ | Incluye columnas de datos extras |
+| Exportar/importar CSV (por código, crear inexistentes) | 🟡 | Importar ✅ (clientes, proveedores y productos, con vista previa); falta exportar y datos extras |
 | Descargar listas de precios (PDF con logo y CSV) | ⬜ | |
 | Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
 | Recetas, elaboración, costos fijos | ⬜ | |
@@ -35,12 +35,12 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | **Historial con saldo en cada movimiento** | ✅ | Cuenta corriente de cliente y proveedor |
 | Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | 🟡 | Hay "Agregar recibo de pago", "Editar", "Comprobante / PDF" y enlace a la venta; "Eliminar" = anular desde el detalle; falta Editar y Compartir |
 | Recibos de cuenta corriente (clientes) | ✅ | Anulables |
-| Órdenes de pago a proveedores | ⬜ | Con Compras |
+| Órdenes de pago a proveedores | ✅ | Desde la cuenta corriente del proveedor o de una compra; se anulan con inversos |
 | Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
 | Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ⬜ | v42 |
 | Proveedor: productos del proveedor, cargar compra de faltantes | ⬜ | |
 | Informes de clientes y proveedores (deudores, top 10, etc.) | ⬜ | |
-| Saldos iniciales: herramienta de importación | ⬜ | Etapa 2 |
+| Saldos iniciales: herramienta de importación | ✅ | Columna Saldo en la importación de clientes y proveedores |
 
 ## Ventas
 | Función | Estado | Nota |
@@ -66,7 +66,8 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 ## Compras
 | Función | Estado | Nota |
 |---|---|---|
-| Todo el módulo (compras, categorías, actualizar costos, faltantes, cta. cte., impuesto por transacción, abiertas) | ⬜ | Espejo de Ventas |
+| Compras, categorías, actualizar costos, faltantes, cta. cte., impuesto por transacción, editar y anular | ✅ | D-022 |
+| Compras abiertas (borradores) y nota de crédito de proveedor | ⬜ | Pendiente |
 
 ## Cajas
 | Función | Estado | Nota |
@@ -76,7 +77,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Visibilidad por usuario | ✅ | |
 | Historial de cierres | 🟡 | Hay listado; falta el detalle con PDF y mail |
 | Reabrir el mismo día (admin + motivo) | ⬜ | |
-| Impuesto por transacción por caja | 🟡 | Se configura; se aplica con Compras/pagos |
+| Impuesto por transacción por caja | ✅ | Se aplica en compras y órdenes de pago |
 | Movimientos con su venta/compra de origen clickeable | 🟡 | Verificar enlaces |
 
 ## Inicio, estadísticas e informes
