@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { crearComercio, ErrorDeUsuario, type SesionActiva } from '../lib/auth.ts';
 import { abrirCaja, guardarCaja, obtenerCaja } from '../lib/cajas.ts';
 import { guardarProducto, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
-import { anularCompra, cerrarCompra, datosParaEditarCompra, listarCompras, obtenerCompra } from '../lib/compras.ts';
+import { agregarCategoriaDeCompra, anularCompra, cerrarCompra, datosParaEditarCompra, listarCompras, obtenerCompra } from '../lib/compras.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
 import { guardarProveedor, obtenerProveedor } from '../lib/personas.ts';
 
@@ -109,6 +109,7 @@ test('el nuevo costo contempla el descuento del renglón', async () => {
 
 test('un ítem libre no mueve stock ni costos', async () => {
   const stock0 = await stockDe(cafe);
+  await agregarCategoriaDeCompra(A, 'Insumos');
   const r = await compra({ categoria: 'Insumos', renglones: [renglon(null, '1', '500')] });
   assert.equal(Number(r.total), 500);
   assert.equal(await stockDe(cafe), stock0);
