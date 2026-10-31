@@ -61,6 +61,8 @@ export default async function Venta({ params, searchParams }: { params: Promise<
         </div>
         {v.nota && <p style={{ fontSize: 14 }}><b>Nota:</b> {v.nota}</p>}
       </div>
+      <Link href={`/comprobante/ventas/${v.id}`} target="_blank" style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Comprobante / PDF</Link>
+      {v.estado === 'cerrada' && !esNota && v.notasCredito.length === 0 && <Link href={`/ventas/nueva?editar=${v.id}`} style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Editar</Link>}
       {v.estado === 'cerrada' && !esNota && <Link href={`/ventas/${v.id}/nota-de-credito`} style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Hacer nota de crédito</Link>}
       {v.estado === 'cerrada' && <AnularVenta id={v.id} numero={v.numero} esNota={esNota} />}
     </main>

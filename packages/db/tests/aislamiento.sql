@@ -418,4 +418,31 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM ventas WHERE venta_origen_id IS NOT NULL) <> 0 THEN RAISE EXCEPTION 'B ve notas de crédito de A'; END IF;
 END $$;
 
+-- 19) Devoluciones de pago: aisladas, no se borran y una vez anuladas no se tocan; los libros aceptan sus movimientos.
+SELECT set_config('app.tenant_id', :'a', true);
+INSERT INTO cajas (tenant_id, nombre, tipo) VALUES (app.tenant_id(), 'Caja devoluciones', 'efectivo');
+DO $$ DECLARE c uuid; k uuid; m uuid; d uuid; BEGIN
+  SELECT id INTO c FROM clientes WHERE nombre = 'Cliente venta';
+  SELECT id INTO k FROM cajas WHERE nombre = 'Caja devoluciones';
+  INSERT INTO medios_pago (tenant_id, nombre) VALUES (app.tenant_id(), 'Medio devoluciones') RETURNING id INTO m;
+  INSERT INTO devoluciones_pago (tenant_id, numero, cliente_id, importe, medio_pago_id, caja_id)
+    VALUES (app.tenant_id(), 1, c, 100, m, k) RETURNING id INTO d;
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, devolucion_id) VALUES (app.tenant_id(), c, 'devolucion_pago', 100, d);
+  BEGIN
+    INSERT INTO devoluciones_pago (tenant_id, numero, cliente_id, importe, medio_pago_id, caja_id) VALUES (app.tenant_id(), 2, c, 0, m, k);
+    RAISE EXCEPTION 'permitió una devolución de importe 0';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN DELETE FROM devoluciones_pago; RAISE EXCEPTION 'permitió borrar una devolución';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  BEGIN UPDATE devoluciones_pago SET importe = 999; RAISE EXCEPTION 'permitió cambiar el importe de una devolución cerrada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+  UPDATE devoluciones_pago SET estado = 'anulada', anulada_en = now();
+  BEGIN UPDATE devoluciones_pago SET nota = 'x'; RAISE EXCEPTION 'permitió tocar una devolución anulada';
+  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'permitió%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM devoluciones_pago) <> 0 THEN RAISE EXCEPTION 'B ve devoluciones de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

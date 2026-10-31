@@ -114,3 +114,18 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 - **Anular:** anular una nota genera los movimientos inversos y libera lo devuelto. Una venta con notas vigentes no se puede anular hasta anular sus notas.
 - **Pendiente:** nota de crédito sin venta de origen (ítems sueltos), nota de crédito electrónica con ARCA (se hace al integrar facturación) y la devolución de pago (saldo a favor del cliente).
 
+## D-019 · Devolución de pago
+- **Estado:** Aceptada para la etapa 1. Agrega el tipo `devolucion_pago` a caja y cuenta corriente (como D-015).
+- **Decisión:** cuando un cliente tiene saldo a favor (cuenta corriente negativa), se le puede devolver plata. Es el espejo del recibo: sale de una caja abierta (con un medio de pago habilitado para esa caja) y el saldo del cliente sube hacia cero. No tiene comisión.
+- **Reglas:** solo hasta el saldo a favor (se bloquea al cliente para que dos devoluciones simultáneas no se pasen); el Consumidor Final no tiene cuenta corriente; la misma clave no duplica. Se anula con motivo generando los movimientos inversos; no se borra ni se edita.
+
+## D-020 · Editar una venta cerrada
+- **Estado:** Aceptada para la etapa 1.
+- **Decisión:** "editar" una venta no modifica la venta cerrada (los libros son de solo agregar). Se carga la venta en el formulario y, al guardar, la original se **anula** (con sus movimientos inversos y el motivo "reemplazada por la venta N° X") y se crea una **venta nueva**, todo en una sola transacción: si algo falla, la original queda intacta.
+- **Reglas:** no se editan ventas anuladas, notas de crédito ni ventas con notas de crédito vigentes (primero se anulan las notas). La venta nueva conserva la fecha original salvo que se cambie. El aviso de stock negativo se calcula con lo vendido ya devuelto al stock.
+
+## D-021 · Comprobante imprimible / PDF
+- **Estado:** Aceptada para la etapa 1.
+- **Decisión:** el comprobante de una venta o nota de crédito es una página limpia (`/comprobante/ventas/[id]`) con el nombre del comercio, los renglones y, en las facturas, el neto gravado y el IVA por alícuota. El PDF sale del "Guardar como PDF" del navegador: no se agregan dependencias.
+- **Pendiente:** el email del comprobante necesita un servicio de correo (proveedor, remitente y clave como variable de entorno): se decide aparte. La factura electrónica con CAE llega con la integración de ARCA.
+
