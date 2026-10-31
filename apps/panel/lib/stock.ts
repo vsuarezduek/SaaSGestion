@@ -56,6 +56,7 @@ export async function revertirStock(s: SesionActiva, productoId: string, movimie
     const orig = o.rows[0];
     if (!orig) throw new ErrorDeUsuario('El movimiento no existe');
     if (orig.tipo === 'reversion') throw new ErrorDeUsuario('Una reversión no se puede revertir');
+    if (orig.tipo === 'elaboracion') throw new ErrorDeUsuario('Este movimiento es de una elaboración: se anula desde la elaboración');
     const inversa = orig.cantidad.startsWith('-') ? orig.cantidad.slice(1) : '-' + orig.cantidad;
     try {
       const r = await c.query<{ id: string }>(

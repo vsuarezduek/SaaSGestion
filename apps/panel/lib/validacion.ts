@@ -167,6 +167,15 @@ const fechaArgentina = z
     return d.toISOString();
   });
 
+export const esquemaElaboracion = z.object({
+  clave: z.string().uuid(),
+  productoId: z.string().uuid(),
+  cantidad: cantidad('La cantidad elaborada', { cero: false }),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+});
+export type DatosElaboracion = z.infer<typeof esquemaElaboracion>;
+
 export const esquemaCaja = z.object({
   nombre: z.string().trim().min(1, 'Falta el nombre de la caja').max(60, 'El nombre es demasiado largo'),
   tipo: z.enum(['efectivo', 'digital']),
