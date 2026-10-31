@@ -73,7 +73,13 @@ const ALIAS: Record<string, string[]> = {
 
 interface Tabla { columnas: Map<string, number>; encabezados: string[]; filas: { n: number; celdas: string[] }[] }
 
-function tabla(texto: string): Tabla {
+/** En productos "Proveedor" es el proveedor del producto, no el nombre. */
+function aliasDe(tipo: TipoImportacion): Record<string, string[]> {
+  if (tipo !== 'productos') return ALIAS;
+  return { ...ALIAS, nombre: ALIAS.nombre!.filter((a) => a !== 'proveedor' && a !== 'cliente'), proveedor: ['proveedor', 'proveedordelproducto', 'proveedorhabitual'] };
+}
+
+function tabla(texto: string, tipo: TipoImportacion): Tabla {
   const todo = parsearCsv(texto);
   if (todo.length < 2) throw new ErrorDeUsuario('El archivo está vacío o solo tiene el encabezado');
   if (todo.length - 1 > MAX_FILAS) throw new ErrorDeUsuario(`El archivo tiene ${todo.length - 1} filas: el máximo por importación es ${MAX_FILAS}. Dividilo en partes`);
@@ -82,7 +88,7 @@ function tabla(texto: string): Tabla {
   encabezados.forEach((h, i) => {
     const p = plano(h);
     if (!p) return;
-    for (const [clave, alias] of Object.entries(ALIAS)) {
+    for (const [clave, alias] of Object.entries(aliasDe(tipo))) {
       if (alias.includes(p) && !columnas.has(clave)) { columnas.set(clave, i); return; }
     }
     if (!columnas.has('raw:' + p)) columnas.set('raw:' + p, i);
@@ -239,6 +245,13 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
     }
   }
   const cacheRubros = new Map<string, string>();
+  const proveedores = new Map<string, string>();
+  for (const f of (await c.query<{ id: string; nombre: string }>('SELECT id, nombre FROM proveedores WHERE activo')).rows) proveedores.set(plano(f.nombre), f.id);
+  const columnaExtra = new Map<string, number>(); // id del dato extra → columna del archivo
+  for (const x of (await c.query<{ id: string; nombre: string }>('SELECT id, nombre FROM datos_extra WHERE activo')).rows) {
+    const i = t.columnas.get('raw:' + plano(x.nombre));
+    if (i !== undefined) columnaExtra.set(x.id, i);
+  }
   for (const f of t.filas) {
     await c.query('SAVEPOINT fila');
     try {
@@ -263,10 +276,21 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         return n;
       };
       const stockInicial = cant('stock', 'Stock');
+      const provTxt = celda(t, f, 'proveedor');
+      let proveedorId: string | undefined;
+      if (provTxt) {
+        proveedorId = proveedores.get(plano(provTxt));
+        if (!proveedorId) throw new ErrorDeUsuario(`El proveedor "${provTxt}" no existe: cargalo antes en Proveedores`);
+      }
+      const extras: Record<string, string> = {};
+      for (const [datoId, i] of columnaExtra) {
+        const txt = (f.celdas[i] ?? '').trim();
+        if (txt) extras[datoId] = txt;
+      }
       const v = esquemaProducto.safeParse({
         codigo: celda(t, f, 'codigo'), nombre, rubroId, tipo: celda(t, f, 'tipo'), unidad: celda(t, f, 'unidad') || 'unidad', costo: celda(t, f, 'costo'),
         stockMinimo: cant('stockminimo', 'Stock mínimo'), stockIdeal: cant('stockideal', 'Stock ideal'), iva: alicuotaDe(celda(t, f, 'iva')),
-        vendible: true, comprable: true, integrable: true, publicadoWeb: false, urlWeb: '', precios,
+        vendible: true, comprable: true, integrable: true, publicadoWeb: false, urlWeb: '', precios, proveedorId, extras,
       });
       if (!v.success) throw new ErrorDeUsuario(primerError(v.error));
       const d = v.data;
@@ -286,14 +310,16 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         poner('nombre', 'nombre', d.nombre); poner('codigo', 'codigo', d.codigo); poner('tipo', 'tipo', d.tipo); poner('unidad', 'unidad', d.unidad); poner('costo', 'costo', d.costo);
         poner('iva', 'iva', d.iva); poner('stock_minimo', 'stockminimo', d.stockMinimo); poner('stock_ideal', 'stockideal', d.stockIdeal);
         if (rubroId) cambios.push(['rubro_id', rubroId]);
-        if (cambios.length) await c.query(`UPDATE productos SET ${cambios.map(([col], i) => `${col} = $${i + 2}`).join(', ')} WHERE id = $1`, [id, ...cambios.map(([, val]) => val)]);
+        if (proveedorId) cambios.push(['proveedor_id', proveedorId]);
+        if (Object.keys(extras).length) cambios.push(['datos_extra', JSON.stringify(extras)]);
+        if (cambios.length) await c.query(`UPDATE productos SET ${cambios.map(([col], i) => (col === 'datos_extra' ? `datos_extra = datos_extra || $${i + 2}::jsonb` : `${col} = $${i + 2}`)).join(', ')} WHERE id = $1`, [id, ...cambios.map(([, val]) => val)]);
         await auditar(c, s.usuarioId, 'modificar', 'producto', { importado: true, ...Object.fromEntries(cambios), precios }, { entidadId: id });
         res.actualizados++;
       } else {
         const r = await c.query<{ id: string }>(
-          `INSERT INTO productos (tenant_id, codigo, nombre, rubro_id, tipo, unidad, costo, iva, vendible, comprable, integrable, publicado_web, url_web, stock_minimo, stock_ideal)
-           VALUES (app.tenant_id(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-          [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb, d.stockMinimo, d.stockIdeal]);
+          `INSERT INTO productos (tenant_id, codigo, nombre, rubro_id, tipo, unidad, costo, iva, vendible, comprable, integrable, publicado_web, url_web, stock_minimo, stock_ideal, proveedor_id, datos_extra)
+           VALUES (app.tenant_id(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING id`,
+          [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb, d.stockMinimo, d.stockIdeal, proveedorId ?? null, JSON.stringify(extras)]);
         id = r.rows[0]!.id;
         await auditar(c, s.usuarioId, 'crear', 'producto', { importado: true, ...d }, { entidadId: id });
         if (stockInicial && Number(stockInicial) !== 0) {
@@ -320,7 +346,7 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
 export async function importarLista(s: SesionActiva, tipo: TipoImportacion, texto: string, opciones: { actualizar: boolean; simular: boolean }): Promise<ResultadoImportacion> {
   if (tipo !== 'clientes' && tipo !== 'proveedores' && tipo !== 'productos') throw new ErrorDeUsuario('Tipo de importación desconocido');
   exigir(s, tipo);
-  const t = tabla(String(texto ?? ''));
+  const t = tabla(String(texto ?? ''), tipo);
   if (!tiene(t, 'nombre')) throw new ErrorDeUsuario('No encuentro la columna del nombre: el encabezado tiene que tener una columna "Nombre"');
   const res: ResultadoImportacion = { total: t.filas.length, creados: 0, actualizados: 0, omitidos: 0, simulacion: opciones.simular, errores: [], erroresTotales: 0 };
   try {
@@ -349,8 +375,8 @@ export function plantilla(tipo: TipoImportacion, listas: string[]): string {
       ['Distribuidora Andes', 'Carlos', 'Mercadería', '2615551111', 'ventas@andes.com', 'Belgrano 45', 'Godoy Cruz', '30712345678', 'Responsable Inscripto', '0'],
     ],
     productos: [
-      ['Código', 'Nombre', 'Rubro', 'Tipo', 'Unidad', 'Costo', 'IVA', 'Stock', 'Stock mínimo', 'Stock ideal', ...listas],
-      ['A001', 'Miel 500g', 'Almacén > Dulces', 'Miel', 'unidad', '2500', '21', '12', '4', '20', ...listas.map(() => '4500')],
+      ['Código', 'Nombre', 'Rubro', 'Tipo', 'Proveedor', 'Unidad', 'Costo', 'IVA', 'Stock', 'Stock mínimo', 'Stock ideal', ...listas],
+      ['A001', 'Miel 500g', 'Almacén > Dulces', 'Miel', '', 'unidad', '2500', '21', '12', '4', '20', ...listas.map(() => '4500')],
     ],
   };
   return filas[tipo].map((f) => f.map((x) => (/[;"\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x)).join(';')).join('\r\n') + '\r\n';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   aCentavos, deCentavos, normalizarImporte, formatearPesos,
   precioDesdeUtilidad, utilidadDesdePrecio, precioMantenerUtilidad, ivaIncluido, esAlicuotaValida,
-  plegar, terminosDeBusqueda, escaparLike, calcularCompra, impuestoDeTransaccion,
+  plegar, terminosDeBusqueda, escaparLike, calcularCompra, impuestoDeTransaccion, ajustarCosto,
 } from '../src/index.ts';
 
 test('importes: de texto a centavos y de vuelta, sin decimales de coma flotante', () => {
@@ -206,4 +206,17 @@ test('impuesto por transacción: porcentaje del importe, mitad hacia arriba', ()
   assert.equal(impuestoDeTransaccion(12345, 1.2), 148);   // 148,14
   assert.equal(impuestoDeTransaccion(100000, 0), 0);
   assert.throws(() => impuestoDeTransaccion(100, 101));
+});
+
+test('modificación masiva: porcentaje o importe, con redondeo y piso en cero', () => {
+  assert.equal(ajustarCosto(10000, 'pct', 10), 11000);
+  assert.equal(ajustarCosto(10000, 'pct', -10), 9000);
+  assert.equal(ajustarCosto(1005, 'pct', 10), 1106);        // 100,5 → 1105,5 → mitad hacia arriba
+  assert.equal(ajustarCosto(1005, 'pct', -10), 904);        // −100,5 → mitad lejos del cero
+  assert.equal(ajustarCosto(10000, 'imp', 2550), 12550);
+  assert.equal(ajustarCosto(10000, 'imp', -20000), 0);      // no baja de cero
+  assert.equal(ajustarCosto(10000, 'pct', -100), 0);
+  assert.equal(ajustarCosto(0, 'pct', 50), 0);
+  assert.throws(() => ajustarCosto(100, 'imp', 1.5));
+  assert.throws(() => ajustarCosto(-1, 'pct', 1));
 });

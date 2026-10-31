@@ -509,4 +509,32 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM categorias_compra) <> 0 THEN RAISE EXCEPTION 'B ve categorías de compra de A'; END IF;
 END $$;
 
+-- 21) Proveedor y datos extras de los productos: aislados por comercio y consistentes.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE p uuid; pr uuid; BEGIN
+  SELECT id INTO p FROM proveedores WHERE nombre = 'Proveedor A';
+  UPDATE productos SET proveedor_id = p WHERE codigo = 'A1';
+  INSERT INTO datos_extra (tenant_id, nombre) VALUES (app.tenant_id(), 'Lista mayorista');
+  BEGIN
+    INSERT INTO datos_extra (tenant_id, nombre) VALUES (app.tenant_id(), 'LISTA MAYORISTA');
+    RAISE EXCEPTION 'permitió repetir el nombre de un dato extra';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO datos_extra (tenant_id, nombre) VALUES (app.tenant_id(), '   ');
+    RAISE EXCEPTION 'permitió un dato extra sin nombre';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  UPDATE datos_extra SET activo = false WHERE nombre = 'Lista mayorista';
+  INSERT INTO datos_extra (tenant_id, nombre) VALUES (app.tenant_id(), 'Lista mayorista');   -- un dato quitado libera su nombre
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ DECLARE a uuid; BEGIN
+  IF (SELECT count(*) FROM datos_extra) <> 0 THEN RAISE EXCEPTION 'B ve datos extras de A'; END IF;
+  SELECT id INTO a FROM tenants WHERE id <> app.tenant_id() LIMIT 1;
+  BEGIN
+    INSERT INTO productos (tenant_id, nombre, proveedor_id) VALUES (app.tenant_id(), 'Producto con proveedor ajeno', (SELECT id FROM proveedores LIMIT 1));
+    -- B no ve proveedores de A: el subselect da NULL y el producto queda sin proveedor, nunca con el de A.
+    IF (SELECT proveedor_id FROM productos WHERE nombre = 'Producto con proveedor ajeno') IS NOT NULL THEN RAISE EXCEPTION 'B pudo usar un proveedor de A'; END IF;
+  END;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

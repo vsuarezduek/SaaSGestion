@@ -127,6 +127,10 @@ export interface FiltroProductos {
   tipo?: string;
   estado?: 'activos' | 'archivados' | 'todos';
   alerta?: 'negativo' | 'bajo_minimo';
+  proveedorId?: string;
+  extraId?: string;      // dato extra
+  extraValor?: string;   // valor exacto del dato extra ('' junto con extraId = productos sin valor)
+  vendible?: boolean;
   limite?: number;
 }
 
@@ -166,6 +170,13 @@ export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}):
     cond.push(`p.rubro_id IN (WITH RECURSIVE d AS (SELECT id FROM rubros WHERE id = ${p(f.rubroId)}::uuid UNION ALL SELECT x.id FROM rubros x JOIN d ON x.padre_id = d.id) SELECT id FROM d)`);
   }
   if (f.tipo) cond.push(`p.tipo = ${p(f.tipo)}`);
+  if (f.proveedorId) cond.push(`p.proveedor_id = ${p(f.proveedorId)}`);
+  if (f.vendible !== undefined) cond.push(f.vendible ? 'p.vendible' : 'NOT p.vendible');
+  if (f.extraId && UUID.test(f.extraId)) {
+    if (f.extraValor === undefined) cond.push(`coalesce(p.datos_extra ->> ${p(f.extraId)}, '') <> ''`);
+    else if (f.extraValor === '') cond.push(`coalesce(p.datos_extra ->> ${p(f.extraId)}, '') = ''`);
+    else cond.push(`p.datos_extra ->> ${p(f.extraId)} = ${p(f.extraValor)}`);
+  }
   if (f.alerta === 'negativo') cond.push(`${STOCK_SQL} < 0`);
   if (f.alerta === 'bajo_minimo') cond.push(`(p.stock_minimo > 0 AND ${STOCK_SQL} >= 0 AND ${STOCK_SQL} < p.stock_minimo)`);
   const donde = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
@@ -206,15 +217,18 @@ export interface DetalleProducto {
   stock: string;
   stockMinimo: string;
   stockIdeal: string;
+  proveedorId: string | null;
+  extras: Record<string, string>;
 }
 
 async function detalleEn(c: PoolClient, id: string): Promise<DetalleProducto | null> {
   const r = await c.query<{
     id: string; codigo: string | null; nombre: string; rubro_id: string | null; tipo: string | null; unidad: string; costo: string; iva: string;
     vendible: boolean; comprable: boolean; integrable: boolean; publicado_web: boolean; url_web: string | null; activo: boolean; precios: Record<string, string>; stock: string; stock_minimo: string; stock_ideal: string;
+    proveedor_id: string | null; datos_extra: Record<string, string>;
   }>(
     `SELECT p.id, p.codigo, p.nombre, p.rubro_id, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.vendible, p.comprable,
-            p.integrable, p.publicado_web, p.url_web, p.activo, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo, p.stock_ideal::text AS stock_ideal,
+            p.integrable, p.publicado_web, p.url_web, p.activo, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo, p.stock_ideal::text AS stock_ideal, p.proveedor_id, p.datos_extra,
             COALESCE((SELECT jsonb_object_agg(pp.lista_id, pp.precio::text) FROM producto_precios pp WHERE pp.producto_id = p.id), '{}'::jsonb) AS precios
        FROM productos p WHERE p.id = $1`,
     [id],
@@ -224,7 +238,7 @@ async function detalleEn(c: PoolClient, id: string): Promise<DetalleProducto | n
   return {
     id: f.id, codigo: f.codigo, nombre: f.nombre, rubroId: f.rubro_id, tipo: f.tipo, unidad: f.unidad, costo: f.costo, iva: Number(f.iva),
     vendible: f.vendible, comprable: f.comprable, integrable: f.integrable, publicadoWeb: f.publicado_web, urlWeb: f.url_web, activo: f.activo,
-    precios: f.precios, stock: f.stock, stockMinimo: f.stock_minimo, stockIdeal: f.stock_ideal,
+    precios: f.precios, stock: f.stock, stockMinimo: f.stock_minimo, stockIdeal: f.stock_ideal, proveedorId: f.proveedor_id, extras: f.datos_extra ?? {},
   };
 }
 
@@ -264,6 +278,10 @@ export async function guardarProducto(s: SesionActiva, id: string | null, entrad
         const ru = await c.query('SELECT 1 FROM rubros WHERE id = $1 AND activo', [d.rubroId]);
         if (ru.rowCount === 0) throw new ErrorDeUsuario('El rubro no existe o está archivado');
       }
+      if (d.proveedorId) {
+        const pv = await c.query('SELECT 1 FROM proveedores WHERE id = $1 AND activo', [d.proveedorId]);
+        if (pv.rowCount === 0) throw new ErrorDeUsuario('El proveedor no existe o está archivado');
+      }
       const valores = [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb, d.stockMinimo, d.stockIdeal];
       let pid: string;
       let antes: DetalleProducto | null = null;
@@ -283,6 +301,17 @@ export async function guardarProducto(s: SesionActiva, id: string | null, entrad
           valores,
         );
         pid = r.rows[0]!.id;
+      }
+      if (d.proveedorId !== undefined) await c.query('UPDATE productos SET proveedor_id = $2 WHERE id = $1', [pid, d.proveedorId]);
+      if (d.extras !== undefined) {
+        const defs = new Set((await c.query<{ id: string }>('SELECT id FROM datos_extra WHERE activo')).rows.map((x) => x.id));
+        const actual = (await c.query<{ e: Record<string, string> }>('SELECT datos_extra AS e FROM productos WHERE id = $1', [pid])).rows[0]!.e ?? {};
+        const nuevo: Record<string, string> = { ...actual };
+        for (const [k, val] of Object.entries(d.extras)) {
+          if (!defs.has(k)) throw new ErrorDeUsuario('Un dato extra no existe');
+          if (val === '') delete nuevo[k]; else nuevo[k] = val;
+        }
+        await c.query('UPDATE productos SET datos_extra = $2::jsonb WHERE id = $1', [pid, JSON.stringify(nuevo)]);
       }
       for (const [lid, precio] of Object.entries(d.precios)) {
         await c.query(

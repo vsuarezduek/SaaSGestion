@@ -45,6 +45,9 @@ export const esquemaProducto = z.object({
   publicadoWeb: z.boolean(),
   urlWeb: textoOpcional(500).refine((v) => v === null || /^https?:\/\//.test(v), 'El enlace debe empezar con http:// o https://'),
   precios: z.record(z.string().uuid(), importe('Precio')),
+  // Opcionales: si no vienen, al modificar se conserva lo que el producto ya tenía.
+  proveedorId: z.string().uuid().nullable().optional(),
+  extras: z.record(z.string().uuid(), z.string().trim().max(120, 'Un dato extra es demasiado largo')).optional(),   // id del dato → valor ('' = sin valor)
 });
 
 export type DatosProducto = z.infer<typeof esquemaProducto>;

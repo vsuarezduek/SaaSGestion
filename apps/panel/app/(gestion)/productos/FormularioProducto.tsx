@@ -9,14 +9,19 @@ export interface Inicial {
   codigo: string; nombre: string; rubroId: string; tipo: string; unidad: string; costo: string; iva: number;
   vendible: boolean; comprable: boolean; integrable: boolean; publicadoWeb: boolean; urlWeb: string;
   activo: boolean; precios: Record<string, string>; stockMinimo: string; stockIdeal: string;
+  proveedorId: string; extras: Record<string, string>;
 }
 interface Props {
   inicial: Inicial;
   listas: { id: string; nombre: string }[];
   rubros: { id: string; ruta: string }[];
+  proveedores: { id: string; nombre: string }[];
+  datosExtra: { id: string; nombre: string; valores: string[] }[];
 }
 
-export default function FormularioProducto({ inicial, listas, rubros }: Props) {
+const NUEVO = '__nuevo__';
+
+export default function FormularioProducto({ inicial, listas, rubros, proveedores, datosExtra }: Props) {
   const [d, setD] = useState(inicial);
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
@@ -42,6 +47,8 @@ export default function FormularioProducto({ inicial, listas, rubros }: Props) {
         codigo: d.codigo, nombre: d.nombre, rubroId: d.rubroId || null, tipo: d.tipo, unidad: d.unidad, costo: d.costo, iva: d.iva,
         stockMinimo: d.stockMinimo, stockIdeal: d.stockIdeal, vendible: d.vendible, comprable: d.comprable, integrable: d.integrable, publicadoWeb: d.publicadoWeb, urlWeb: d.urlWeb,
         precios: Object.fromEntries(Object.entries(d.precios).filter(([, v]) => v.trim() !== '')),
+        proveedorId: d.proveedorId || null,
+        extras: Object.fromEntries(datosExtra.map((x) => [x.id, d.extras[x.id] ?? ''])),
       });
       if (r?.error) setMsg(r.error);
     });
@@ -67,6 +74,12 @@ export default function FormularioProducto({ inicial, listas, rubros }: Props) {
         <label style={{ ...etiqueta, flex: '1 1 120px' }}>Tipo<input style={campo} value={d.tipo} onChange={(e) => set('tipo', e.target.value)} /></label>
         <label style={{ ...etiqueta, flex: '1 1 90px' }}>Unidad<input style={campo} value={d.unidad} onChange={(e) => set('unidad', e.target.value)} /></label>
       </div>
+      <label style={etiqueta}>Proveedor
+        <select style={campo} value={d.proveedorId} onChange={(e) => set('proveedorId', e.target.value)}>
+          <option value="">Sin proveedor</option>
+          {proveedores.map((p) => (<option key={p.id} value={p.id}>{p.nombre}</option>))}
+        </select>
+      </label>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <label style={{ ...etiqueta, flex: '1 1 140px' }}>Costo (sin IVA)<input style={campo} inputMode="decimal" value={d.costo} onChange={(e) => set('costo', e.target.value)} /></label>
         <label style={{ ...etiqueta, flex: '1 1 100px' }}>IVA %
@@ -94,6 +107,31 @@ export default function FormularioProducto({ inicial, listas, rubros }: Props) {
         {casilla('vendible', 'Se vende')}{casilla('comprable', 'Se compra')}{casilla('integrable', 'Integra otros productos')}{casilla('publicadoWeb', 'Publicado en la tienda')}
       </div>
       <label style={etiqueta}>Enlace en la tienda online (opcional)<input style={campo} value={d.urlWeb} onChange={(e) => set('urlWeb', e.target.value)} /></label>
+      {datosExtra.length > 0 && (
+        <>
+          <b style={{ fontSize: 14 }}>Datos extras</b>
+          {datosExtra.map((x) => {
+            const actual = d.extras[x.id] ?? '';
+            const enLista = actual === '' || x.valores.includes(actual);
+            return (
+              <div key={x.id} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <label style={{ ...etiqueta, flex: '1 1 180px' }}>{x.nombre}
+                  <select style={campo} value={enLista ? actual : NUEVO} onChange={(e) => set('extras', { ...d.extras, [x.id]: e.target.value === NUEVO ? ' ' : e.target.value })}>
+                    <option value="">–</option>
+                    {x.valores.map((v) => (<option key={v} value={v}>{v}</option>))}
+                    <option value={NUEVO}>Otro valor…</option>
+                  </select>
+                </label>
+                {!enLista && (
+                  <label style={{ ...etiqueta, flex: '1 1 180px' }}>Nuevo valor
+                    <input style={campo} autoFocus value={actual.trimStart()} onChange={(e) => set('extras', { ...d.extras, [x.id]: e.target.value })} />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
       <div style={{ display: 'flex', gap: 10 }}>
         <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
         {d.id && (

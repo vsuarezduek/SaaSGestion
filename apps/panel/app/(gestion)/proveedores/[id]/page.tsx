@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { boton } from '../../../../lib/estilos.ts';
+import { listarProductos } from '../../../../lib/catalogo.ts';
 import { listarCajas } from '../../../../lib/cajas.ts';
 import { categoriasDeProveedor, movimientosDe, obtenerProveedor } from '../../../../lib/personas.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function FichaProveedor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await sesionObligatoria();
-  const [p, cats, movs, cajas] = await Promise.all([obtenerProveedor(s, id), categoriasDeProveedor(s), movimientosDe(s, { proveedor: id }), listarCajas(s)]);
+  const [p, cats, movs, cajas, prods] = await Promise.all([obtenerProveedor(s, id), categoriasDeProveedor(s), movimientosDe(s, { proveedor: id }), listarCajas(s), listarProductos(s, { proveedorId: id, limite: 200 })]);
   if (!p) notFound();
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
@@ -26,6 +27,15 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
         filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId, devolucionId: m.devolucionId, compraId: m.compraId, ordenPagoId: m.ordenPagoId }))}
         cajasPago={cajas.filter((k) => k.abierta).map((k) => ({ id: k.id, nombre: k.nombre }))}
       />
+      <details style={{ background: '#fff', border: '1px solid #d3e6de', borderRadius: 12, padding: '10px 16px', marginBottom: 14 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Productos de este proveedor ({prods.total})</summary>
+        {prods.filas.length === 0 ? <p style={{ color: '#5c6d66' }}>Ningún producto tiene a este proveedor. Elegilo en la ficha de cada producto.</p> : (
+          <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
+            {prods.filas.map((f) => (<li key={f.id}><Link href={`/productos/${f.id}`}>{f.nombre}</Link></li>))}
+          </ul>
+        )}
+        <Link href={`/productos?proveedor=${p.id}`}>Ver en Productos</Link> · <Link href={`/productos/masiva`}>Modificar costos masivamente</Link>
+      </details>
       <FormularioPersona
         tipo="proveedor" categoriasProveedor={cats}
         inicial={{ id: p.id, nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', domicilio: p.domicilio ?? '', localidad: p.localidad ?? '', cuit: p.cuit ?? '', condicionIva: p.condicionIva ?? '', categoriaId: '', contacto: p.contacto ?? '', categoria: p.categoria ?? '', activo: p.activo, esConsumidorFinal: false }}
