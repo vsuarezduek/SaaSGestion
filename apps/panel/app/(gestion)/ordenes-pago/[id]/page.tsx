@@ -20,7 +20,7 @@ export default async function OrdenPago({ params }: { params: Promise<{ id: stri
       <h1 style={{ fontFamily: 'Georgia, serif' }}>Orden de pago N° {o.numero}{o.estado === 'anulada' ? ' (anulada)' : ''}</h1>
       {o.estado === 'anulada' && (
         <div style={{ ...aviso, background: '#fbeae0', color: '#b4571a' }}>
-          Orden anulada{o.anuladoEn ? ` el ${hora(o.anuladoEn)}` : ''}{o.motivoAnulacion ? ` · Motivo: ${o.motivoAnulacion}` : ''}. El egreso de caja y el pago en la cuenta corriente fueron revertidos.
+          Orden anulada{o.anuladaEn ? ` el ${hora(o.anuladaEn)}` : ''}{o.motivoAnulacion ? ` · Motivo: ${o.motivoAnulacion}` : ''}. El egreso de caja y el pago en la cuenta corriente fueron revertidos.
         </div>
       )}
       <div style={tarjeta}>
