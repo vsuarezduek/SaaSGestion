@@ -145,3 +145,15 @@ Estados: **Propuesta** (esperando validación) · **Aceptada** · **Reemplazada*
 
 ## Nota operativa · base de producción
 La base de producción (Neon, rama `main`) está reservada y vacía a propósito: las migraciones se aplican en las vistas previas (staging). Por eso el dominio de producción muestra error hasta el lanzamiento. Las migraciones **no** se aplican a producción sin autorización expresa.
+
+## D-024 · Proveedor del producto y datos extras
+- **Estado:** Aceptada para la etapa 1 (migración 0015, aditiva). No toca dinero, stock ni cuenta corriente.
+- **Decisión:** cada producto puede tener un **proveedor** (opcional). Los **datos extras** los define cada comercio (tabla `datos_extra`); el valor de cada producto se guarda en `productos.datos_extra` con el id del dato como clave. Renombrar un dato o un valor no pierde nada. «Quitar» un dato lo desactiva: los valores quedan guardados y dejan de mostrarse.
+- **Uso:** se cargan en la ficha (desplegable con los valores ya usados u «Otro valor…»), se filtran en el listado, se administran por valor (agregar productos, renombrar, quitar), salen en la exportación y en las listas de precios, y se importan por CSV con el nombre del dato como encabezado. Definir datos extras requiere el permiso de ajustes.
+- **Historial del producto:** la ficha muestra las ventas (con notas de crédito) y compras donde participó, con su total.
+
+## D-025 · Modificación masiva, exportación y listas de precios
+- **Estado:** Aceptada para la etapa 1.
+- **Modificación masiva:** exige proveedor y/o rubro (con subrubros): nunca se aplica a todo el catálogo de una vez. Cambia el costo por porcentaje o importe (redondeo al centavo, mitad lejos del cero, nunca por debajo de cero) y, según se elija, **mantiene la utilidad** (los precios de las listas elegidas cambian en la misma proporción) o **mantiene el precio**. Primero se ve qué cambiaría; al aplicar, todo ocurre en una transacción y cada producto deja su auditoría con el antes y el después. Máximo 5.000 productos. Solo productos activos.
+- **Exportar CSV:** código y nombre siempre; el resto según las columnas elegidas; requiere el permiso de descarga. Es el mismo formato que entiende la importación (D-023), que ahora también reconoce proveedor y datos extras.
+- **Listas de precios:** página imprimible («Guardar como PDF» del navegador, sin dependencias) y CSV, con filtros por rubro, proveedor y dato extra, elección de listas, «solo lo que hay en stock» y «mostrar stock». Solo productos activos y vendibles. El logo del comercio llega con la configuración de empresa.

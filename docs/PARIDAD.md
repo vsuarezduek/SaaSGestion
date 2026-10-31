@@ -11,17 +11,17 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 ## Productos
 | Función | Estado | Nota |
 |---|---|---|
-| Ficha: código, rubro/subrubros, tipo, proveedor, IVA, unidad, costo y listas de precios | ✅ | |
+| Ficha: código, rubro/subrubros, tipo, proveedor, IVA, unidad, costo y listas de precios | ✅ | Proveedor del producto: D-024 |
 | Stock actual/ideal/mínimo, libro de stock, alertas (incl. negativo) | ✅ | |
 | Disponible para venta/compra/integrar, web | 🟡 | Hay vendible/comprable/integrable/web; falta "compuesto" con receta |
-| **Datos extras** configurables (renombrar, agregar, quitar) y valores por producto | ⬜ | Cambio del prototipo v42–v44 |
-| Datos extras: lista de productos por valor, renombrar valor, quitar valor, agregar productos | ⬜ | v44 |
+| **Datos extras** configurables (renombrar, agregar, quitar) y valores por producto | ✅ | D-024 |
+| Datos extras: lista de productos por valor, renombrar valor, quitar valor, agregar productos | ✅ | v44 |
 | **Editar el producto en la misma página** (Guardar/Cancelar) | ⬜ | v43 (hoy la ficha del sistema real es un formulario aparte) |
-| Los datos extras se muestran al final de la página del producto | ⬜ | v43 |
-| Historial de ventas y compras del producto | ⬜ | |
-| Modificación masiva (por proveedor/rubro/lista, % o $) | ⬜ | |
-| Exportar/importar CSV (por código, crear inexistentes) | 🟡 | Importar ✅ (clientes, proveedores y productos, con vista previa); falta exportar y datos extras |
-| Descargar listas de precios (PDF con logo y CSV) | ⬜ | |
+| Los datos extras se muestran al final de la página del producto | 🟡 | Están en la ficha, antes de Guardar |
+| Historial de ventas y compras del producto | ✅ | Desplegables en la ficha |
+| Modificación masiva (por proveedor/rubro/lista, % o $) | ✅ | D-025; con vista previa |
+| Exportar/importar CSV (por código, crear inexistentes) | ✅ | Importar con vista previa (D-023) y exportar con columnas elegibles (D-025) |
+| Descargar listas de precios (PDF con logo y CSV) | 🟡 | PDF (imprimir) y CSV con filtros; falta el logo (con Empresa) |
 | Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
 | Recetas, elaboración, costos fijos | ⬜ | |
 | "Marcar para pedir" / mercadería a pedir | ⬜ | |

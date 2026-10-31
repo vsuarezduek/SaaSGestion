@@ -5,6 +5,7 @@ import { archivarProducto, guardarProducto } from '../../../lib/catalogo.ts';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { registrarStock, revertirStock } from '../../../lib/stock.ts';
+import { modificacionMasiva, type EntradaMasiva, type ResultadoMasiva } from '../../../lib/masiva.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 
 export interface Resultado {
@@ -50,4 +51,16 @@ export async function revertirStockAccion(productoId: string, movimientoId: stri
   }
   revalidatePath(`/productos/${productoId}`);
   return {};
+}
+
+export async function masivaAccion(entrada: EntradaMasiva, simular: boolean): Promise<{ error?: string; resultado?: ResultadoMasiva }> {
+  const s = await sesionObligatoria();
+  try {
+    const resultado = await modificacionMasiva(s, entrada, { simular });
+    if (!simular) revalidatePath('/productos', 'layout');
+    return { resultado };
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
 }
