@@ -114,7 +114,8 @@ function importeConSigno(txt: string, campo: string): string | null {
 }
 
 class Simulacion extends Error {
-  constructor(readonly resultado: ResultadoImportacion) { super('simulacion'); }
+  readonly resultado: ResultadoImportacion;
+  constructor(resultado: ResultadoImportacion) { super('simulacion'); this.resultado = resultado; }
 }
 
 // ───────── Personas (clientes y proveedores) ─────────

@@ -344,15 +344,15 @@ async function anularEnTransaccion(c: PoolClient, s: SesionActiva, id: string, m
   await c.query(
     `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
      SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, venta_id FROM caja_movimientos
-      WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
+      WHERE venta_id = $1 AND tipo IN ('cobro_venta', 'comision_venta', 'devolucion_venta') ORDER BY id`, [id, concepto, s.usuarioId]);
   await c.query(
     `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, revierte_id, usuario_id, venta_id)
      SELECT app.tenant_id(), producto_id, 'reversion', -cantidad, $2, id, $3, venta_id FROM stock_movimientos
-      WHERE venta_id = $1 AND tipo IN ('venta', 'devolucion_venta')`, [id, concepto, s.usuarioId]);
+      WHERE venta_id = $1 AND tipo IN ('venta', 'devolucion_venta') ORDER BY id`, [id, concepto, s.usuarioId]);
   await c.query(
     `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, venta_id)
      SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, venta_id FROM cuenta_corriente_movimientos
-      WHERE venta_id = $1 AND tipo IN ('venta', 'nota_credito')`, [id, concepto, s.usuarioId]);
+      WHERE venta_id = $1 AND tipo IN ('venta', 'nota_credito') ORDER BY id`, [id, concepto, s.usuarioId]);
   await c.query(`UPDATE ventas SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
   await auditar(c, s.usuarioId, 'anular', esNota ? 'nota_credito' : 'venta', { numero: venta.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
 }

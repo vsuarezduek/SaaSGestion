@@ -82,11 +82,11 @@ export async function anularOrdenPago(s: SesionActiva, id: string, motivo: strin
     await c.query(
       `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, revierte_id, usuario_id, orden_pago_id)
        SELECT app.tenant_id(), caja_id, NULL, 'reversion', -importe, $2, id, $3, orden_pago_id FROM caja_movimientos
-        WHERE orden_pago_id = $1 AND tipo IN ('pago_orden', 'impuesto_orden')`, [id, concepto, s.usuarioId]);
+        WHERE orden_pago_id = $1 AND tipo IN ('pago_orden', 'impuesto_orden') ORDER BY id`, [id, concepto, s.usuarioId]);
     await c.query(
       `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, proveedor_id, tipo, importe, concepto, revierte_id, usuario_id, orden_pago_id)
        SELECT app.tenant_id(), cliente_id, proveedor_id, 'reversion', -importe, $2, id, $3, orden_pago_id FROM cuenta_corriente_movimientos
-        WHERE orden_pago_id = $1 AND tipo = 'orden_pago'`, [id, concepto, s.usuarioId]);
+        WHERE orden_pago_id = $1 AND tipo = 'orden_pago' ORDER BY id`, [id, concepto, s.usuarioId]);
     await c.query(`UPDATE ordenes_pago SET estado = 'anulada', anulada_en = now(), anulada_por = $2, motivo_anulacion = $3 WHERE id = $1`, [id, s.usuarioId, m]);
     await auditar(c, s.usuarioId, 'anular', 'orden_pago', { numero: op.numero, motivo: m }, { entidadId: id, antes: { estado: 'cerrada' } });
   });
