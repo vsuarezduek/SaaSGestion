@@ -7,6 +7,7 @@ import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/sr
 import Link from 'next/link';
 import { listarAbiertasDeCliente, listarPedidos } from '../../../../lib/ventasAbiertas.ts';
 import { boton, tarjeta } from '../../../../lib/estilos.ts';
+import PerfilPersona from '../../PerfilPersona.tsx';
 import ListaPedidos from '../../ventas/ListaPedidos.tsx';
 import CuentaCorriente from '../../CuentaCorriente.tsx';
 import FormularioPersona from '../../FormularioPersona.tsx';
@@ -24,6 +25,7 @@ export default async function FichaCliente({ params }: { params: Promise<{ id: s
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontFamily: 'Georgia, serif' }}>{c.nombre}</h1>
+      <PerfilPersona sesion={s} tipo="cliente" id={id} />
       <ListaPedidos pedidos={pedidos} sinCliente />
       {ventasAbiertas.length > 0 && (
         <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0' }}>

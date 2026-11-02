@@ -6,14 +6,14 @@ import NuevaCompra from './NuevaCompra.tsx';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Nueva({ searchParams }: { searchParams: Promise<{ editar?: string; proveedor?: string; faltantes?: string }> }) {
-  const { editar, proveedor, faltantes } = await searchParams;
+export default async function Nueva({ searchParams }: { searchParams: Promise<{ editar?: string; proveedor?: string; faltantes?: string; ids?: string }> }) {
+  const { editar, proveedor, faltantes, ids } = await searchParams;
   const s = await sesionObligatoria();
   const edicion = editar ? await datosParaEditarCompra(s, editar) : null;
   const [categorias, cajas, elegido, sugeridos] = await Promise.all([
     categoriasDeCompra(s), listarCajas(s),
     proveedor && !edicion ? obtenerProveedor(s, proveedor) : Promise.resolve(null),
-    faltantes && !edicion ? faltantesParaComprar(s) : Promise.resolve([]),
+    faltantes && !edicion ? faltantesParaComprar(s, { proveedorId: faltantes === 'proveedor' ? proveedor : undefined, ids: ids ? ids.split(',') : undefined }) : Promise.resolve([]),
   ]);
   const inicial = edicion?.proveedor ?? (elegido ? { id: elegido.id, nombre: elegido.nombre, saldo: elegido.saldo } : null);
   return (
