@@ -24,7 +24,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Descargar listas de precios (PDF con logo y CSV) | 🟡 | PDF (imprimir) y CSV con filtros; falta el logo (con Empresa) |
 | Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
 | Recetas, elaboración, costos fijos | ✅ | D-026; elaborar, anular, aplicar costo |
-| "Marcar para pedir" / mercadería a pedir | ⬜ | |
+| "Marcar para pedir" / mercadería a pedir | 🟡 | Sale solo de stock mínimo/ideal en el Inicio; falta marcar a mano |
 
 ## Clientes y proveedores
 | Función | Estado | Nota |
@@ -37,9 +37,9 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Recibos de cuenta corriente (clientes) | ✅ | Anulables |
 | Órdenes de pago a proveedores | ✅ | Desde la cuenta corriente del proveedor o de una compra; se anulan con inversos |
 | Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
-| Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ⬜ | v42 |
+| Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ✅ | En la ficha de cliente y de proveedor |
 | Proveedor: productos del proveedor, cargar compra de faltantes | ⬜ | |
-| Informes de clientes y proveedores (deudores, top 10, etc.) | ⬜ | |
+| Informes de clientes y proveedores (deudores, top 10, etc.) | ✅ | `/informes`, con período, «solo con saldo» y CSV |
 | Saldos iniciales: herramienta de importación | ✅ | Columna Saldo en la importación de clientes y proveedores |
 
 ## Ventas
@@ -84,11 +84,11 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Función | Estado | Nota |
 |---|---|---|
 | Alertas de stock en el inicio | ✅ | |
-| Tarjetas de ventas de hoy y ticket promedio, pedidos pendientes, mercadería a pedir | ⬜ | |
-| Historial de actividad (administrador) | ⬜ | |
-| **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ⬜ | |
-| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | ⬜ | v42–v44 |
-| Frase del día | ⬜ | Configurable por comercio |
+| Tarjetas de ventas de hoy y ticket promedio, pedidos pendientes, mercadería a pedir | ✅ | Mercadería agrupada por proveedor, con tildes y «Armar compra»; sesión anterior |
+| Historial de actividad (administrador) | ✅ | En palabras, con enlace; requiere permiso de ajustes |
+| **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ✅ | D-027 |
+| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; falta PNG |
+| Frase del día | 🟡 | Una por día de una lista fija; falta que cada comercio la configure |
 
 ## Ajustes y usuarios
 | Función | Estado | Nota |

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { puede, type Rol } from '../../../../packages/seguridad/src/index.ts';
 import type { ReactNode } from 'react';
 import { sesionObligatoria } from '../../lib/sesion.ts';
 
@@ -18,6 +19,7 @@ export default async function Gestion({ children }: { children: ReactNode }) {
         <Link href="/proveedores" style={enlace}>Proveedores</Link>
         <Link href="/compras" style={enlace}>Compras</Link>
         <Link href="/cajas" style={enlace}>Cajas</Link>
+        {puede({ rol: s.rol as Rol, permisos: s.permisos, activo: true, cajasVisibles: null }, 'informes') && <><Link href="/estadisticas" style={enlace}>Estadísticas</Link><Link href="/informes" style={enlace}>Informes</Link></>}
         <Link href="/rubros" style={enlace}>Rubros</Link>
         <Link href="/importar" style={enlace}>Importar</Link>
       </nav>
