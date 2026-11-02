@@ -9,12 +9,12 @@ import { cerrarPool, conTenant } from '../lib/db.ts';
 import { estadisticasDe, hoyArgentina, periodoDe } from '../lib/estadisticas.ts';
 import { ErrorDePermiso } from '../lib/permisos.ts';
 import { registrarStock } from '../lib/stock.ts';
-import { anularVenta, cerrarVenta, guardarMedioDePago } from '../lib/ventas.ts';
+import { anularVenta, buscarClientesParaVenta, cerrarVenta, guardarMedioDePago } from '../lib/ventas.ts';
 
 const sufijo = Date.now().toString(36);
 let A: SesionActiva;
 let B: SesionActiva;
-let lista = '', caja = '', medio = '', cafe = '';
+let lista = '', caja = '', medio = '', cafe = '', consumidor = '';
 
 async function sesionDe(slug: string, email: string): Promise<SesionActiva> {
   const tenantId = await crearComercio({ slug, nombre: slug, email, nombreAdmin: 'Admin', contrasena: 'clave-larga-123' });
@@ -22,13 +22,14 @@ async function sesionDe(slug: string, email: string): Promise<SesionActiva> {
   return { usuarioId: u.rows[0]!.id, tenantId, comercio: slug, nombre: 'Admin', email, rol: 'administrador', permisos: [] };
 }
 const vender = (cantidad: string) =>
-  cerrarVenta(A, { clave: randomUUID(), clienteId: undefined, comprobante: 'remito', nroComprobante: '', listaId: lista, fecha: '', descuentoTotalPct: 0, nota: '',
+  cerrarVenta(A, { clave: randomUUID(), clienteId: consumidor, comprobante: 'remito', nroComprobante: '', listaId: lista, fecha: '', descuentoTotalPct: 0, nota: '',
     renglones: [{ productoId: cafe, descripcion: '', cantidad, precio: '1000', descuentoPct: 0, iva: 21 }], cobro: { tipo: 'caja', medioPagoId: medio, cajaId: caja } });
 
 before(async () => {
   A = await sesionDe(`est-a-${sufijo}`, 'a@ejemplo.test');
   B = await sesionDe(`est-b-${sufijo}`, 'b@ejemplo.test');
   lista = (await listasDePrecios(A))[0]!.id;
+  consumidor = (await buscarClientesParaVenta(A, 'consumidor'))[0]!.id;
   caja = await guardarCaja(A, null, { nombre: 'Efectivo', tipo: 'efectivo', impuestoTransaccion: 0 });
   await abrirCaja(A, caja, { contado: '0' });
   medio = await guardarMedioDePago(A, null, { nombre: 'Efectivo', comisionPct: 0, ivaComision: 21, cajaIds: [caja] });
