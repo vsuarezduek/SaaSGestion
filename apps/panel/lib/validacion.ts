@@ -361,3 +361,32 @@ export const esquemaBorrador = z.object({
     .max(200, 'Demasiados renglones'),
 });
 export type Borrador = z.infer<typeof esquemaBorrador>;
+
+// ───────── Usuarios y empresa ─────────
+export const ROLES_USUARIO = ['administrador', 'encargada', 'atencion', 'cocina', 'marketing'] as const;
+export const PERMISOS_ASIGNABLES = ['ajustes', 'informes', 'descargar', 'permisos'] as const;
+
+export const esquemaUsuario = z.object({
+  nombre: z.string().trim().min(1, 'Falta el nombre').max(60, 'El nombre es demasiado largo'),
+  email,
+  rol: z.enum(ROLES_USUARIO),
+  permisos: z.array(z.enum(PERMISOS_ASIGNABLES)).max(4).transform((p) => [...new Set(p)]),
+  cajasVisibles: z.array(z.string().uuid()).max(100).nullable(),
+  contrasena: z.string().max(200).optional(),   // vacío o ausente = no cambiar
+  pin: z.string().max(8).optional(),            // vacío o ausente = no cambiar
+});
+export type DatosUsuario = z.infer<typeof esquemaUsuario>;
+
+export const esquemaEmpresa = z.object({
+  razonSocial: textoOpcional(120),
+  cuit,
+  condicionIva: textoOpcional(40),
+  domicilio: textoOpcional(160),
+  localidad: textoOpcional(80),
+  telefono: textoOpcional(40),
+  email,
+  web: textoOpcional(120),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'El color debe ser como #1c9764'),
+  nombre: z.string().trim().min(1, 'Falta el nombre del comercio').max(120, 'El nombre es demasiado largo'),
+});
+export type DatosEmpresa = z.infer<typeof esquemaEmpresa>;

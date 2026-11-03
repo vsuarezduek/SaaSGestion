@@ -21,7 +21,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Historial de ventas y compras del producto | ✅ | Desplegables en la ficha |
 | Modificación masiva (por proveedor/rubro/lista, % o $) | ✅ | D-025; con vista previa |
 | Exportar/importar CSV (por código, crear inexistentes) | ✅ | Importar con vista previa (D-023) y exportar con columnas elegibles (D-025) |
-| Descargar listas de precios (PDF con logo y CSV) | 🟡 | PDF (imprimir) y CSV con filtros; falta el logo (con Empresa) |
+| Descargar listas de precios (PDF con logo y CSV) | ✅ | PDF (imprimir) con logo y CSV con filtros |
 | Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
 | Recetas, elaboración, costos fijos | ✅ | D-026; elaborar, anular, aplicar costo |
 | "Marcar para pedir" / mercadería a pedir | 🟡 | Sale solo de stock mínimo/ideal en el Inicio; falta marcar a mano |
@@ -94,9 +94,9 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Función | Estado | Nota |
 |---|---|---|
 | Inicio de sesión seguro, aislamiento por comercio, auditoría | ✅ | |
-| Usuarios, tipos, permisos, cajas visibles: pantallas de administración | ⬜ | Hay modelo y permisos en el servidor |
-| PIN de mostrador / cambio de operador | ⬜ | |
-| Empresa (logo, datos) | ⬜ | |
+| Usuarios, tipos, permisos, cajas visibles: pantallas de administración | ✅ | Ajustes → Usuarios (D-029); actividad por usuario |
+| PIN de mostrador / cambio de operador | ✅ | Cambiar de operador con PIN; mi cuenta (contraseña y PIN) |
+| Empresa (logo, datos) | ✅ | Ajustes → Empresa y marca; logo y color en menú, lista de precios y cierre |
 | Retenciones/comisiones por medio | ✅ | Medios de pago |
 | Rubros | ✅ | |
 | Costos fijos | ✅ | Productos → Costos fijos (D-026) |
