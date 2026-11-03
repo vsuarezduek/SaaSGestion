@@ -35,6 +35,7 @@ export default async function Informes({ searchParams }: { searchParams: Promise
       <h1 style={{ marginTop: 0 }}>Informes de {plural.toLowerCase()}</h1>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {(['cliente', 'proveedor'] as const).map((t) => <Link key={t} href={enlace({ tipo: t })} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...(tipo === t ? { background: '#1c9764', color: '#fff' } : {}) }}>{t === 'cliente' ? 'Clientes' : 'Proveedores'}</Link>)}
+        <Link href="/informes/productos" style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px' }}>Productos</Link>
         <span style={{ width: 12 }} />
         {OPCIONES.map(([clave, texto]) => <Link key={clave} href={enlace({ p: clave, desde: '', hasta: '' })} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...((q.p ?? 'mes') === clave && !q.desde ? { background: '#1c9764', color: '#fff' } : {}) }}>{texto}</Link>)}
       </div>

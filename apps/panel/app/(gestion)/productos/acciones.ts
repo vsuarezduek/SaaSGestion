@@ -1,6 +1,7 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { marcarParaPedir } from '../../../lib/aPedir.ts';
 import { archivarProducto, guardarProducto } from '../../../lib/catalogo.ts';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
@@ -20,6 +21,8 @@ export async function guardarProductoAccion(id: string | null, datos: unknown): 
     if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
     throw e;
   }
+  // Un producto existente se queda en su página (ya guardado); uno nuevo vuelve al listado.
+  if (id !== null) { revalidatePath('/productos', 'layout'); return {}; }
   redirect('/productos');
 }
 
@@ -63,4 +66,16 @@ export async function masivaAccion(entrada: EntradaMasiva, simular: boolean): Pr
     if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
     throw e;
   }
+}
+
+export async function marcarParaPedirAccion(id: string, marcado: boolean): Promise<Resultado> {
+  const s = await sesionObligatoria();
+  try {
+    await marcarParaPedir(s, id, marcado);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  revalidatePath('/', 'layout');   // la ficha y el Inicio
+  return {};
 }

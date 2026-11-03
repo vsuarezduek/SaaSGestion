@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { botonSecundario } from '../../../lib/estilos.ts';
 
-export interface ItemPedir { id: string; nombre: string; stock: string; cantidad: string; unidad: string }
+export interface ItemPedir { id: string; nombre: string; stock: string; cantidad: string; unidad: string; marcado: boolean }
 export interface GrupoPedir { proveedorId: string | null; proveedor: string; items: ItemPedir[] }
 
 export default function PedirMercaderia({ grupos }: { grupos: GrupoPedir[] }) {
@@ -23,7 +23,7 @@ export default function PedirMercaderia({ grupos }: { grupos: GrupoPedir[] }) {
             {g.items.map((i) => (
               <label key={i.id} style={{ display: 'flex', gap: 8, padding: '3px 0', fontSize: 14 }}>
                 <input type="checkbox" checked={!!marcados[i.id]} onChange={(e) => setMarcados({ ...marcados, [i.id]: e.target.checked })} />
-                <span>{i.nombre} · hay {i.stock}, pedir {i.cantidad} {i.unidad}</span>
+                <span>{i.nombre} · hay {i.stock}, pedir {i.cantidad} {i.unidad}{i.marcado ? ' · marcado' : ''}</span>
               </label>
             ))}
           </div>

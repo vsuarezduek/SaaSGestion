@@ -50,7 +50,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
       <div style={{ ...tarjeta, overflowX: 'auto' }}>
         <b>{p.q ? 'Resultados' : 'Últimas ventas'}</b>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={celda}>N°</th><th style={celda}>Fecha</th><th style={celda}>Cliente</th><th style={celda}>Comprobante</th><th style={celda}>Cobro</th><th style={celda}>Total</th></tr></thead>
+          <thead><tr><th style={celda}>N°</th><th style={celda}>Fecha</th><th style={celda}>Cliente</th><th style={celda}>Comprobante</th><th style={celda}>Cobro</th><th style={celda}>Total</th><th style={celda}></th></tr></thead>
           <tbody>
             {ventas.map((v) => (
               <tr key={v.id} style={{ opacity: v.estado === 'anulada' ? 0.5 : 1 }}>
@@ -58,9 +58,13 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
                 <td style={celda}>{v.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
                 <td style={celda}>{v.cliente}</td><td style={celda}>{ETIQUETAS[v.comprobante] ?? v.comprobante}{v.estado === 'anulada' ? ' (anulada)' : ''}</td>
                 <td style={celda}>{v.cobro}</td><td style={celda}>{v.comprobante === 'nota_credito' ? '−' : ''}{formatearPesos(aCentavos(v.total))}</td>
+                <td style={{ ...celda, whiteSpace: 'nowrap' }}>
+                  {v.estado === 'cerrada' && v.comprobante !== 'nota_credito' && <Link href={`/ventas/nueva?editar=${v.id}`} style={{ color: '#1c9764', marginRight: 10 }}>Editar</Link>}
+                  <a href={`/comprobante/ventas/${v.id}`} target="_blank" rel="noopener" style={{ color: '#1c9764' }}>Compartir</a>
+                </td>
               </tr>
             ))}
-            {ventas.length === 0 && (<tr><td style={celda} colSpan={6}>Todavía no hay ventas.</td></tr>)}
+            {ventas.length === 0 && (<tr><td style={celda} colSpan={7}>Todavía no hay ventas.</td></tr>)}
           </tbody>
         </table>
         {!p.q && !p.todas && ventas.length >= 10 && (<Link href="/ventas?todas=1" style={{ color: '#1c9764' }}>Mostrar más</Link>)}

@@ -46,7 +46,7 @@ export default async function DetalleCierre({ params }: { params: Promise<{ id: 
             {d.movimientos.map((m) => (
               <tr key={m.id} style={{ opacity: m.revertido ? 0.5 : 1 }}>
                 <td style={celda}>{fecha(m.fecha)}</td><td style={celda}>{TIPOS[m.tipo] ?? m.tipo}{m.revertido ? ' (anulado)' : ''}</td>
-                <td style={celda}>{m.concepto ?? ''}</td><td style={celda}>{$(m.importe)}</td><td style={celda}>{m.usuario ?? ''}</td>
+                <td style={celda}>{m.origen ? <Link href={m.origen} style={{ color: '#1c9764' }}>{m.concepto || 'Ver detalle'}</Link> : (m.concepto ?? '')}</td><td style={celda}>{$(m.importe)}</td><td style={celda}>{m.usuario ?? ''}</td>
               </tr>
             ))}
             {d.movimientos.length === 0 && <tr><td style={celda} colSpan={5}>Sin movimientos en este turno.</td></tr>}

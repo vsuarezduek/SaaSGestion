@@ -16,15 +16,15 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Disponible para venta/compra/integrar, web | ✅ | "Compuesto" = tiene receta (D-026) |
 | **Datos extras** configurables (renombrar, agregar, quitar) y valores por producto | ✅ | D-024 |
 | Datos extras: lista de productos por valor, renombrar valor, quitar valor, agregar productos | ✅ | v44 |
-| **Editar el producto en la misma página** (Guardar/Cancelar) | ⬜ | v43 (hoy la ficha del sistema real es un formulario aparte) |
+| **Editar el producto en la misma página** (Editar / Guardar / Cancelar) | ✅ | D-031 |
 | Los datos extras se muestran al final de la página del producto | 🟡 | Están en la ficha, antes de Guardar |
 | Historial de ventas y compras del producto | ✅ | Desplegables en la ficha |
 | Modificación masiva (por proveedor/rubro/lista, % o $) | ✅ | D-025; con vista previa |
 | Exportar/importar CSV (por código, crear inexistentes) | ✅ | Importar con vista previa (D-023) y exportar con columnas elegibles (D-025) |
 | Descargar listas de precios (PDF con logo y CSV) | ✅ | PDF (imprimir) con logo y CSV con filtros |
-| Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ⬜ | Filtrados: v42 |
+| Informes: ranking, por proveedor, **productos filtrados** (proveedor, rubro, extras, disponible para venta) | ✅ | D-031 |
 | Recetas, elaboración, costos fijos | ✅ | D-026; elaborar, anular, aplicar costo |
-| "Marcar para pedir" / mercadería a pedir | 🟡 | Sale solo de stock mínimo/ideal en el Inicio; falta marcar a mano |
+| "Marcar para pedir" / mercadería a pedir | ✅ | D-031. Se marca a mano en la ficha y se limpia al comprarlo |
 
 ## Clientes y proveedores
 | Función | Estado | Nota |
@@ -33,7 +33,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Consumidor Final | ✅ | |
 | Cuenta corriente como libro de solo agregar, saldo inicial, ajustes, reversión | ✅ | |
 | **Historial con saldo en cada movimiento** | ✅ | Cuenta corriente de cliente y proveedor |
-| Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | 🟡 | Hay "Agregar recibo de pago", "Editar", "Comprobante / PDF" y enlace a la venta; "Eliminar" = anular desde el detalle; falta Editar y Compartir |
+| Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | ✅ | D-031. Editar y Compartir en cada fila; «Eliminar» = anular desde el detalle |
 | Recibos de cuenta corriente (clientes) | ✅ | Anulables |
 | Órdenes de pago a proveedores | ✅ | Desde la cuenta corriente del proveedor o de una compra; se anulan con inversos |
 | Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
@@ -79,7 +79,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Historial de cierres | ✅ | Listado y detalle de cada cierre con PDF por imprimir y «Enviar por mail» al mail de la empresa |
 | Reabrir el mismo día (admin + motivo) | ✅ | D-028 |
 | Impuesto por transacción por caja | ✅ | Se aplica en compras y órdenes de pago |
-| Movimientos con su venta/compra de origen clickeable | 🟡 | Verificar enlaces |
+| Movimientos con su venta/compra de origen clickeable | ✅ | D-031 |
 
 ## Inicio, estadísticas e informes
 | Función | Estado | Nota |
@@ -88,7 +88,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Tarjetas de ventas de hoy y ticket promedio, pedidos pendientes, mercadería a pedir | ✅ | Mercadería agrupada por proveedor, con tildes y «Armar compra»; sesión anterior |
 | Historial de actividad (administrador) | ✅ | En palabras, con enlace; requiere permiso de ajustes |
 | **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ✅ | D-027 |
-| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; falta PNG |
+| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; PNG por gráfico (D-031) |
 | Frase del día | ✅ | Una por día, de estoicos célebres (Séneca, Marco Aurelio, Epicteto, Zenón) |
 
 ## Ajustes y usuarios
