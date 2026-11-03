@@ -33,6 +33,7 @@ test('la frase del día es estable durante el día y cambia con los días', () =
   assert.deepEqual(fraseDelDia('2026-11-02'), fraseDelDia('2026-11-02'));
   assert.notDeepEqual(fraseDelDia('2026-11-02'), fraseDelDia('2026-11-03'));
   assert.ok(FRASES.every((f) => f.texto && f.autor));
+  assert.ok(FRASES.every((f) => /Séneca|Marco Aurelio|Epicteto|Zenón/.test(f.autor)), 'solo estoicos');
 });
 
 test('la actividad se describe en palabras y no muestra datos técnicos', () => {

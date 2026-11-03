@@ -18,7 +18,7 @@ export async function listarMediosDePago(s: SesionActiva): Promise<MedioPago[]> 
   return conTenant(s.tenantId, async (c) => {
     const r = await c.query(
       `SELECT m.id, m.nombre, m.comision_pct::text, m.iva_comision::text, m.activo,
-              COALESCE((SELECT array_agg(x.caja_id) FROM medio_pago_cajas x WHERE x.medio_id = m.id), '{}') AS cajas
+              COALESCE((SELECT array_agg(x.caja_id ORDER BY x.orden, x.caja_id) FROM medio_pago_cajas x WHERE x.medio_id = m.id), '{}') AS cajas
          FROM medios_pago m ORDER BY m.orden, lower(m.nombre)`,
     );
     return r.rows.map((f) => ({ id: f.id, nombre: f.nombre, comisionPct: Number(f.comision_pct), ivaComision: Number(f.iva_comision), activo: f.activo, cajaIds: f.cajas }));
@@ -45,8 +45,10 @@ export async function guardarMedioDePago(s: SesionActiva, id: string | null, ent
         );
         mid = r.rows[0]!.id;
       }
+      // El orden en que se eligieron las cajas queda guardado: la primera es la que se propone al cobrar con este medio.
+      let orden = 0;
       for (const cajaId of new Set(d.cajaIds)) {
-        await c.query('INSERT INTO medio_pago_cajas (tenant_id, medio_id, caja_id) VALUES (app.tenant_id(), $1, $2)', [mid, cajaId]);
+        await c.query('INSERT INTO medio_pago_cajas (tenant_id, medio_id, caja_id, orden) VALUES (app.tenant_id(), $1, $2, $3)', [mid, cajaId, orden++]);
       }
       await auditar(c, s.usuarioId, id ? 'modificar' : 'crear', 'medio_pago', d, { entidadId: mid! });
       return mid!;

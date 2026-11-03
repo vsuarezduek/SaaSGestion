@@ -1,7 +1,7 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
-import { abrirCaja, cerrarCaja, guardarCaja, movimientoManual, reabrirCaja, revertirMovimientoCaja, transferir } from '../../../lib/cajas.ts';
+import { abrirCaja, cambiarEstadoCaja, cerrarCaja, guardarCaja, moverCaja, movimientoManual, reabrirCaja, revertirMovimientoCaja, transferir } from '../../../lib/cajas.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 
@@ -39,4 +39,10 @@ export async function anularAccion(id: string, mov: string): Promise<Resultado> 
 }
 export async function reabrirCajaAccion(id: string, motivo: string): Promise<Resultado> {
   return intentar((s) => reabrirCaja(s, id, motivo));
+}
+export async function estadoCajaAccion(id: string, activa: boolean): Promise<Resultado> {
+  return intentar((s) => cambiarEstadoCaja(s, id, activa));
+}
+export async function moverCajaAccion(id: string, direccion: 'arriba' | 'abajo'): Promise<Resultado> {
+  return intentar((s) => moverCaja(s, id, direccion));
 }

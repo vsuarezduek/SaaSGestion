@@ -3,7 +3,6 @@ import { listarCajas } from '../../../lib/cajas.ts';
 import { tarjeta } from '../../../lib/estilos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 import { aCentavos, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
-import NuevaCaja from './NuevaCaja.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +16,7 @@ export default async function Cajas() {
         <h1 style={{ fontFamily: 'Georgia, serif' }}>Cajas</h1>
         <Link href="/cajas/cierres" style={{ color: '#1c9764' }}>Historial de cierres</Link>
       </div>
-      {puedeConfigurar && <NuevaCaja />}
+      {puedeConfigurar && <p style={{ fontSize: 13 }}><Link href="/ajustes/cajas" style={{ color: "#1c9764" }}>Configurar cajas y medios de pago</Link></p>}
       <div style={tarjeta}>
         {cajas.length === 0 && <p>Todavía no hay cajas.{puedeConfigurar ? ' Creá la primera arriba.' : ''}</p>}
         {cajas.map((c) => (

@@ -98,6 +98,55 @@ export async function guardarCaja(s: SesionActiva, id: string | null, entrada: u
   }
 }
 
+/** Todas las cajas, también las archivadas, para la pantalla de ajustes. */
+export async function listarCajasParaAjustes(s: SesionActiva): Promise<Caja[]> {
+  exigir(s, 'ajustes');
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query(
+      `SELECT c.id, c.nombre, c.tipo, c.impuesto_transaccion::text, c.activa, ${SALDO_SQL}::text AS saldo,
+              (SELECT t.id FROM caja_turnos t WHERE t.caja_id = c.id AND t.cerrado_en IS NULL) AS turno_id
+         FROM cajas c ORDER BY c.activa DESC, c.orden, lower(c.nombre)`);
+    return r.rows.map(mapCaja);
+  });
+}
+
+/** Archiva o reactiva una caja. Para archivarla tiene que estar cerrada y sin saldo (no se borra: sus movimientos quedan). */
+export async function cambiarEstadoCaja(s: SesionActiva, id: string, activa: boolean): Promise<void> {
+  exigir(s, 'ajustes');
+  if (!UUID.test(id)) throw new ErrorDeUsuario('La caja no existe');
+  await conTenant(s.tenantId, async (c) => {
+    const r = await c.query<{ activa: boolean; saldo: string; abierta: boolean }>(
+      `SELECT c.activa, ${SALDO_SQL}::text AS saldo, EXISTS (SELECT 1 FROM caja_turnos t WHERE t.caja_id = c.id AND t.cerrado_en IS NULL) AS abierta FROM cajas c WHERE c.id = $1 FOR UPDATE`, [id]);
+    const k = r.rows[0];
+    if (!k) throw new ErrorDeUsuario('La caja no existe');
+    if (k.activa === activa) return;
+    if (!activa) {
+      if (k.abierta) throw new ErrorDeUsuario('Cerrá la caja antes de archivarla');
+      if (aCentavos(k.saldo) !== 0) throw new ErrorDeUsuario('La caja todavía tiene saldo: transferilo a otra caja antes de archivarla');
+    }
+    await c.query('UPDATE cajas SET activa = $2 WHERE id = $1', [id, activa]);
+    await auditar(c, s.usuarioId, activa ? 'reactivar' : 'archivar', 'caja', undefined, { entidadId: id });
+  });
+}
+
+/** Sube o baja una caja en el orden en que se muestran. */
+export async function moverCaja(s: SesionActiva, id: string, direccion: 'arriba' | 'abajo'): Promise<void> {
+  exigir(s, 'ajustes');
+  if (!UUID.test(id)) throw new ErrorDeUsuario('La caja no existe');
+  await conTenant(s.tenantId, async (c) => {
+    await c.query("SELECT pg_advisory_xact_lock(hashtext(app.tenant_id()::text || ':orden_cajas'))");
+    const r = await c.query<{ id: string }>('SELECT id FROM cajas WHERE activa ORDER BY orden, lower(nombre), id');
+    const ids = r.rows.map((f) => f.id);
+    const i = ids.indexOf(id);
+    if (i < 0) throw new ErrorDeUsuario('La caja no existe o está archivada');
+    const j = direccion === 'arriba' ? i - 1 : i + 1;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+    for (let k = 0; k < ids.length; k++) await c.query('UPDATE cajas SET orden = $2 WHERE id = $1', [ids[k], k + 1]);
+    await auditar(c, s.usuarioId, 'modificar', 'caja', { orden: direccion }, { entidadId: id });
+  });
+}
+
 // ───────── Movimientos ─────────
 export interface MovimientoCaja {
   id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean; revierteId: string | null; enTransferencia: boolean;
