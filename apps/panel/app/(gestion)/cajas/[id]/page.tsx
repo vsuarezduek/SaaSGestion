@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { listarCajas, movimientosDeCaja, obtenerCaja, resumenDelTurno } from '../../../../lib/cajas.ts';
+import { cierreReabrible, listarCajas, movimientosDeCaja, obtenerCaja, resumenDelTurno } from '../../../../lib/cajas.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import DetalleCaja from './DetalleCaja.tsx';
@@ -12,7 +12,7 @@ export default async function Caja({ params, searchParams }: { params: Promise<{
   const s = await sesionObligatoria();
   const caja = await obtenerCaja(s, id);
   if (!caja) notFound();
-  const [movs, resumen, otras] = await Promise.all([movimientosDeCaja(s, id, todos ? 200 : 10), resumenDelTurno(s, id), listarCajas(s)]);
+  const [movs, resumen, otras, reabrible] = await Promise.all([movimientosDeCaja(s, id, todos ? 200 : 10), resumenDelTurno(s, id), listarCajas(s), cierreReabrible(s, id)]);
   const $ = (n: string) => formatearPesos(aCentavos(n));
   return (
     <main style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
@@ -23,6 +23,7 @@ export default async function Caja({ params, searchParams }: { params: Promise<{
         otras={otras.filter((c) => c.id !== id).map((c) => ({ id: c.id, nombre: c.nombre, abierta: c.abierta }))}
         movimientos={movs.map((m) => ({ id: m.id, fecha: m.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, concepto: m.concepto ?? '', importe: $(m.importe), usuario: m.usuario ?? '', revertido: m.revertido }))}
         verTodos={Boolean(todos)}
+        reabrible={reabrible}
       />
     </main>
   );

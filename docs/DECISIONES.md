@@ -173,3 +173,9 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Inicio:** las ventas de hoy se ven solo con permiso de informes; el historial de actividad, solo con permiso de ajustes. La mercadería a pedir sale de productos bajo el stock mínimo, agrupada por el proveedor del producto; «Armar compra» abre una compra con lo tildado.
 - **Informes y perfiles:** clientes y proveedores con total, operaciones, ticket promedio, saldo y última operación del período. El perfil de la ficha usa todo el historial.
 - **Frase del día:** lista fija, una por día; nada específico de un comercio. Que cada comercio configure las suyas queda pendiente.
+
+## D-028 · Detalle de cierres y reapertura de caja
+- **Estado:** Aceptada para la etapa 1 (migración 0017, aditiva: `reabre_turno_id` y `reapertura_motivo` en `caja_turnos`).
+- **Detalle del cierre:** arqueo de apertura y de cierre, ingresos y egresos del turno (sin contar diferencias de arqueo ni traspasos, y sin los movimientos anulados), y cada movimiento. Versión imprimible / «Guardar como PDF» desde el navegador. El envío por mail queda pendiente hasta elegir el proveedor de correo.
+- **Reapertura:** solo administración, con motivo obligatorio y solo si la caja se cerró **hoy** (hora de Argentina) y está cerrada. El turno cerrado no se modifica: se anulan con movimientos inversos (que referencian al original) la diferencia de arqueo y el traspaso que generó el cierre, en ambas cajas, y se abre un turno nuevo que continúa al anterior con el saldo resultante (el esperado del cierre). Un cierre se reabre una sola vez; si se vuelve a cerrar, se reabre el nuevo. Queda en la auditoría y a la vista en el detalle.
+- **Traspaso ya gastado:** si la caja destino ya movió ese dinero, su saldo puede quedar negativo; se permite y queda a la vista, igual que cualquier otro egreso.

@@ -590,4 +590,44 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM costos_fijos_items) <> 0 THEN RAISE EXCEPTION 'B ve costos fijos de A'; END IF;
 END $$;
 
+-- 23) Reapertura de caja: un turno nuevo continúa a uno cerrado, con motivo; un cierre se reabre una sola vez; aislado por comercio.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE k uuid; t1 uuid; BEGIN
+  INSERT INTO cajas (tenant_id, nombre) VALUES (app.tenant_id(), 'Caja reapertura') RETURNING id INTO k;
+  INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, cerrado_en, cierre_esperado, cierre_contado)
+    VALUES (app.tenant_id(), k, 0, 0, now(), 0, 0) RETURNING id INTO t1;
+  INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reabre_turno_id, reapertura_motivo, cerrado_en, cierre_esperado, cierre_contado)
+    VALUES (app.tenant_id(), k, 0, 0, t1, 'Faltó un cobro', now(), 0, 0);
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reabre_turno_id, reapertura_motivo)
+      VALUES (app.tenant_id(), k, 0, 0, t1, 'Otra vez');
+    RAISE EXCEPTION 'permitió reabrir dos veces el mismo cierre';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reabre_turno_id)
+      VALUES (app.tenant_id(), k, 0, 0, t1);
+    RAISE EXCEPTION 'permitió una reapertura sin motivo';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reapertura_motivo)
+      VALUES (app.tenant_id(), k, 0, 0, 'Motivo sin cierre');
+    RAISE EXCEPTION 'permitió un motivo de reapertura sin cierre de origen';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reabre_turno_id, reapertura_motivo)
+      VALUES (app.tenant_id(), k, 0, 0, gen_random_uuid(), 'Cierre inexistente');
+    RAISE EXCEPTION 'permitió reabrir un cierre que no existe';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+  PERFORM set_config('test.turno_reab', t1::text, false);
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  BEGIN
+    INSERT INTO caja_turnos (tenant_id, caja_id, apertura_esperada, apertura_contada, reabre_turno_id, reapertura_motivo)
+      VALUES (app.tenant_id(), gen_random_uuid(), 0, 0, current_setting('test.turno_reab')::uuid, 'Cruzado');
+    RAISE EXCEPTION 'permitió reabrir un cierre de otro comercio';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+  IF (SELECT count(*) FROM caja_turnos WHERE reabre_turno_id IS NOT NULL) <> 0 THEN RAISE EXCEPTION 'B ve reaperturas de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos
