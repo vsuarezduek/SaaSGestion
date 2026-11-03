@@ -630,4 +630,31 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM caja_turnos WHERE reabre_turno_id IS NOT NULL) <> 0 THEN RAISE EXCEPTION 'B ve reaperturas de A'; END IF;
 END $$;
 
+-- 24) Empresa y marca: una fila por comercio, aislada; el logo solo PNG/JPEG y chico; color y CUIT con formato.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  INSERT INTO empresa (tenant_id, razon_social, cuit, color) VALUES (app.tenant_id(), 'Empresa A', '30123456789', '#aa3300');
+  BEGIN INSERT INTO empresa (tenant_id) VALUES (app.tenant_id()); RAISE EXCEPTION 'permitió dos filas de empresa para el mismo comercio';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN UPDATE empresa SET color = 'rojo'; RAISE EXCEPTION 'permitió un color inválido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN UPDATE empresa SET cuit = '123'; RAISE EXCEPTION 'permitió un CUIT inválido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN UPDATE empresa SET logo = '\x89504e47'::bytea; RAISE EXCEPTION 'permitió un logo sin tipo';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN UPDATE empresa SET logo = '\x3c737667'::bytea, logo_tipo = 'image/svg+xml'; RAISE EXCEPTION 'permitió un logo SVG';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN UPDATE empresa SET logo = decode(repeat('ab', 300001), 'hex'), logo_tipo = 'image/png'; RAISE EXCEPTION 'permitió un logo demasiado grande';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  UPDATE empresa SET logo = '\x89504e47'::bytea, logo_tipo = 'image/png';
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM empresa) <> 0 THEN RAISE EXCEPTION 'B ve la empresa de A'; END IF;
+  BEGIN INSERT INTO empresa (tenant_id) VALUES ((SELECT id FROM tenants WHERE slug = 'no-existe-ningun-slug-asi'));
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  UPDATE empresa SET razon_social = 'Hackeado';
+  IF (SELECT count(*) FROM empresa WHERE razon_social = 'Hackeado') <> 0 THEN RAISE EXCEPTION 'B modificó la empresa de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

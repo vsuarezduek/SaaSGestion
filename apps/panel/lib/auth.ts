@@ -204,3 +204,44 @@ export async function cerrarSesion(valor: string | undefined): Promise<void> {
     if (f) await auditar(c, f.usuario_id, 'salir', 'sesion');
   });
 }
+
+// ───────── Cambio de operador con PIN (mostrador) ─────────
+export interface Operador { id: string; nombre: string; rol: string }
+
+/** Quiénes pueden tomar el mostrador con su PIN: activos, con PIN y sin ser administradores (esos entran con contraseña). */
+export async function operadoresDisponibles(s: SesionActiva): Promise<Operador[]> {
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query<Operador>(
+      "SELECT id, nombre, rol FROM usuarios WHERE activo AND pin_hash IS NOT NULL AND rol <> 'administrador' ORDER BY lower(nombre)");
+    return r.rows;
+  });
+}
+
+/** Abre una sesión nueva para otro operador si el PIN es correcto. Los intentos fallidos se cuentan por operador y por IP. */
+export async function cambiarOperador(s: SesionActiva, usuarioId: string, pin: string, ip: string): Promise<ResultadoIngreso> {
+  if (!esUuid(usuarioId) || !/^\d{4,8}$/.test(pin)) return { ok: false, motivo: 'credenciales' };
+  const clave = `pin:${usuarioId}`;
+  const ipHash = hashIp(ip);
+  return conTenant(s.tenantId, async (c): Promise<ResultadoIngreso> => {
+    const f = await c.query<{ por_usuario: string; por_ip: string }>(
+      `SELECT count(*) FILTER (WHERE email = $1)::text AS por_usuario, count(*) FILTER (WHERE ip_hash = $2)::text AS por_ip
+         FROM intentos_ingreso WHERE exito = false AND creado_en > now() - make_interval(mins => $3::int)`, [clave, ipHash, VENTANA_MINUTOS]);
+    if (Number(f.rows[0]!.por_usuario) >= MAX_FALLOS_POR_EMAIL || Number(f.rows[0]!.por_ip) >= MAX_FALLOS_POR_IP) return { ok: false, motivo: 'bloqueado' };
+    const u = await c.query<{ id: string; pin_hash: string | null; email: string | null }>(
+      "SELECT id, pin_hash, email::text AS email FROM usuarios WHERE id = $1 AND activo AND rol <> 'administrador'", [usuarioId]);
+    const usuario = u.rows[0];
+    const coincide = await verificar(pin, usuario?.pin_hash ?? (await relleno()));
+    if (!usuario || !usuario.pin_hash || !coincide) {
+      await c.query('INSERT INTO intentos_ingreso (tenant_id, email, ip_hash, exito) VALUES (app.tenant_id(), $1, $2, false)', [clave, ipHash]);
+      await auditar(c, usuario?.id ?? null, 'ingreso_fallido', 'sesion', { via: 'pin' });
+      return { ok: false, motivo: 'credenciales' };
+    }
+    await c.query('DELETE FROM intentos_ingreso WHERE email = $1', [clave]);
+    await c.query('DELETE FROM sesiones WHERE expira_en < now()');
+    const t = nuevoToken();
+    await c.query('INSERT INTO sesiones (tenant_id, usuario_id, token_hash, expira_en) VALUES (app.tenant_id(), $1, $2, $3)', [usuario.id, t.tokenHash, t.expiraEn]);
+    await c.query('UPDATE usuarios SET ultimo_ingreso = now() WHERE id = $1', [usuario.id]);
+    await auditar(c, usuario.id, 'ingresar', 'sesion', { via: 'pin', desde: s.usuarioId });
+    return { ok: true, cookie: `${s.tenantId}.${t.token}`, expiraEn: t.expiraEn };
+  });
+}

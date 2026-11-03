@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { detalleDeCierre } from '../../../../lib/cajas.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
-import { nombreDelComercio } from '../../../../lib/ventas.ts';
+import { obtenerEmpresa } from '../../../../lib/empresa.ts';
 import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import BotonImprimir from '../../listas/BotonImprimir.tsx';
 
@@ -16,7 +16,7 @@ const TIPOS: Record<string, string> = {
 export default async function ComprobanteCierre({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await sesionObligatoria();
-  const [d, comercio] = await Promise.all([detalleDeCierre(s, id), nombreDelComercio(s)]);
+  const [d, comercio] = await Promise.all([detalleDeCierre(s, id), obtenerEmpresa(s)]);
   if (!d) notFound();
   const $ = (n: string) => formatearPesos(aCentavos(n));
   const fecha = (x: Date) => new Date(x).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -26,7 +26,10 @@ export default async function ComprobanteCierre({ params }: { params: Promise<{ 
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
       <style>{'@media print { .no-imprimir { display: none !important; } body { background: #fff !important; } main { padding: 0 !important; } }'}</style>
       <p className="no-imprimir"><BotonImprimir /></p>
-      <h1 style={{ fontFamily: 'Georgia, serif', marginBottom: 0 }}>{comercio}</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: `3px solid ${comercio.color}`, paddingBottom: 8 }}>
+        {comercio.tieneLogo && <img src="/empresa/logo" alt="" style={{ maxHeight: 60, maxWidth: 140 }} />}
+        <h1 style={{ fontFamily: 'Georgia, serif', margin: 0 }}>{comercio.nombre}</h1>
+      </div>
       <h2 style={{ marginTop: 4 }}>Cierre de {d.caja}</h2>
       <p style={{ marginTop: 0 }}>{fecha(d.abiertoEn)} → {fecha(d.cerradoEn)}</p>
       {d.reaperturaMotivo && <p>Turno reabierto. Motivo: {d.reaperturaMotivo}</p>}
