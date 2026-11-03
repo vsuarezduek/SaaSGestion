@@ -5,6 +5,7 @@ import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { botonSecundario, campo, error, pagina, tarjeta } from '../../../lib/estilos.ts';
 import { estadisticasDe, periodoDe, type OrdenProductos } from '../../../lib/estadisticas.ts';
 import { sesionActual } from '../../../lib/sesion.ts';
+import BotonPng from './BotonPng.tsx';
 import Grafico, { valorTexto } from './Grafico.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -68,6 +69,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
                   </table>
                 </details>
                 <a href={`/estadisticas/csv?${params}&serie=${s.clave}`} style={{ fontSize: 12 }}>CSV de este gráfico</a>
+                <BotonPng nombre={`${s.clave}-${datos.periodo.desde}_${datos.periodo.hasta}`} />
               </div>
             </details>
           ))}

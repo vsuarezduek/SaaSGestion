@@ -5,8 +5,10 @@ import { datosExtraConValores, proveedoresParaProducto } from '../../../../lib/e
 import { historialDeProducto, type MovimientoHistorial } from '../../../../lib/historialProducto.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { movimientosDeStock } from '../../../../lib/stock.ts';
+import { estaMarcadoParaPedir } from '../../../../lib/aPedir.ts';
 import FormularioProducto from '../FormularioProducto.tsx';
 import RecetaProducto from '../receta/RecetaProducto.tsx';
+import MarcarPedir from '../MarcarPedir.tsx';
 import StockProducto from '../StockProducto.tsx';
 import { obtenerReceta } from '../../../../lib/recetas.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
@@ -16,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export default async function EditarProducto({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await sesionObligatoria();
-  const [p, listas, rubros, movs, proveedores, datosExtra, hist, receta] = await Promise.all([obtenerProducto(s, id), listasDePrecios(s), listarRubros(s), movimientosDeStock(s, id), proveedoresParaProducto(s), datosExtraConValores(s), historialDeProducto(s, id), obtenerReceta(s, id)]);
+  const [p, listas, rubros, movs, proveedores, datosExtra, hist, receta, marcado] = await Promise.all([obtenerProducto(s, id), listasDePrecios(s), listarRubros(s), movimientosDeStock(s, id), proveedoresParaProducto(s), datosExtraConValores(s), historialDeProducto(s, id), obtenerReceta(s, id), estaMarcadoParaPedir(s, id)]);
   if (!p) notFound();
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
@@ -25,6 +27,7 @@ export default async function EditarProducto({ params }: { params: Promise<{ id:
         productoId={p.id} stock={p.stock} minimo={p.stockMinimo} unidad={p.unidad}
         filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, cantidad: m.cantidad, concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '' }))}
       />
+      {p.comprable && p.activo && <MarcarPedir productoId={p.id} marcado={marcado} />}
       <FormularioProducto
         listas={listas}
         proveedores={proveedores}

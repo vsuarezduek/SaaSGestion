@@ -8,7 +8,7 @@ interface Props {
   caja: { id: string; nombre: string; tipo: string; abierta: boolean; saldo: string; saldoCrudo: string };
   resumen: { apertura: string; ingresos: string; egresos: string; movimientos: number } | null;
   otras: { id: string; nombre: string; abierta: boolean }[];
-  movimientos: { id: string; fecha: string; tipo: string; concepto: string; importe: string; usuario: string; revertido: boolean }[];
+  movimientos: { id: string; fecha: string; tipo: string; concepto: string; importe: string; usuario: string; revertido: boolean; origen: string | null }[];
   verTodos: boolean;
   reabrible: string | null;
 }
@@ -119,7 +119,7 @@ export default function DetalleCaja({ caja, resumen, otras, movimientos, verTodo
           <tbody>
             {movimientos.map((m) => (
               <tr key={m.id} style={{ opacity: m.revertido ? 0.5 : 1 }}>
-                <td style={celda}>{m.fecha}</td><td style={celda}>{TIPOS[m.tipo] ?? m.tipo}{m.revertido ? ' (anulado)' : ''}</td><td style={celda}>{m.concepto}</td>
+                <td style={celda}>{m.fecha}</td><td style={celda}>{TIPOS[m.tipo] ?? m.tipo}{m.revertido ? ' (anulado)' : ''}</td><td style={celda}>{m.origen ? <a href={m.origen} style={{ color: '#1c9764' }}>{m.concepto || 'Ver detalle'}</a> : m.concepto}</td>
                 <td style={celda}>{m.importe}</td><td style={celda}>{m.usuario}</td>
                 <td style={celda}>{!m.revertido && m.tipo !== 'reversion' && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => correr(() => anularAccion(caja.id, m.id))}>Anular</button>)}</td>
               </tr>

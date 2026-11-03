@@ -21,7 +21,7 @@ export default async function Caja({ params, searchParams }: { params: Promise<{
         caja={{ id: caja.id, nombre: caja.nombre, tipo: caja.tipo, abierta: caja.abierta, saldo: $(caja.saldo), saldoCrudo: caja.saldo }}
         resumen={resumen ? { apertura: $(resumen.apertura), ingresos: $(resumen.ingresos), egresos: $(resumen.egresos), movimientos: resumen.movimientos } : null}
         otras={otras.filter((c) => c.id !== id).map((c) => ({ id: c.id, nombre: c.nombre, abierta: c.abierta }))}
-        movimientos={movs.map((m) => ({ id: m.id, fecha: m.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, concepto: m.concepto ?? '', importe: $(m.importe), usuario: m.usuario ?? '', revertido: m.revertido }))}
+        movimientos={movs.map((m) => ({ id: m.id, fecha: m.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, concepto: m.concepto ?? '', importe: $(m.importe), usuario: m.usuario ?? '', revertido: m.revertido, origen: m.origen }))}
         verTodos={Boolean(todos)}
         reabrible={reabrible}
       />

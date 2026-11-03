@@ -25,7 +25,7 @@ export default async function Compras({ searchParams }: { searchParams: Promise<
       <div style={{ ...tarjeta, overflowX: 'auto' }}>
         <b>{p.q ? 'Resultados' : 'Últimas compras'}</b>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={celda}>N°</th><th style={celda}>Fecha</th><th style={celda}>Proveedor</th><th style={celda}>Comprobante</th><th style={celda}>Categoría</th><th style={celda}>Pago</th><th style={celda}>Total</th></tr></thead>
+          <thead><tr><th style={celda}>N°</th><th style={celda}>Fecha</th><th style={celda}>Proveedor</th><th style={celda}>Comprobante</th><th style={celda}>Categoría</th><th style={celda}>Pago</th><th style={celda}>Total</th><th style={celda}></th></tr></thead>
           <tbody>
             {compras.map((c) => (
               <tr key={c.id} style={{ opacity: c.estado === 'anulada' ? 0.5 : 1 }}>
@@ -33,9 +33,10 @@ export default async function Compras({ searchParams }: { searchParams: Promise<
                 <td style={celda}>{c.fecha.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
                 <td style={celda}>{c.proveedor}</td><td style={celda}>{ETIQUETAS[c.comprobante] ?? c.comprobante}{c.estado === 'anulada' ? ' (anulada)' : ''}</td>
                 <td style={celda}>{c.categoria}</td><td style={celda}>{c.pago}</td><td style={celda}>{formatearPesos(aCentavos(c.total))}</td>
+                <td style={celda}>{c.estado === 'cerrada' && <Link href={`/compras/nueva?editar=${c.id}`} style={{ color: '#1c9764' }}>Editar</Link>}</td>
               </tr>
             ))}
-            {compras.length === 0 && (<tr><td style={celda} colSpan={7}>Todavía no hay compras.</td></tr>)}
+            {compras.length === 0 && (<tr><td style={celda} colSpan={8}>Todavía no hay compras.</td></tr>)}
           </tbody>
         </table>
         {!p.q && !p.todas && compras.length >= 10 && (<Link href="/compras?todas=1" style={{ color: '#1c9764' }}>Mostrar más</Link>)}

@@ -23,6 +23,10 @@ const NUEVO = '__nuevo__';
 
 export default function FormularioProducto({ inicial, listas, rubros, proveedores, datosExtra }: Props) {
   const [d, setD] = useState(inicial);
+  // Un producto existente se ve primero tal cual está; «Editar» habilita los campos y «Cancelar» vuelve a lo último guardado.
+  const esNuevo = inicial.id === null;
+  const [editando, setEditando] = useState(esNuevo);
+  const [base, setBase] = useState(inicial);
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const set = <K extends keyof Inicial>(k: K, v: Inicial[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -50,8 +54,11 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
         proveedorId: d.proveedorId || null,
         extras: Object.fromEntries(datosExtra.map((x) => [x.id, d.extras[x.id] ?? ''])),
       });
-      if (r?.error) setMsg(r.error);
+      if (r?.error) { setMsg(r.error); return; }
+      setBase(d);
+      if (!esNuevo) setEditando(false);
     });
+  const cancelar = () => { setD(base); setMsg(null); setEditando(false); };
 
   const casilla = (k: 'vendible' | 'comprable' | 'integrable' | 'publicadoWeb', texto: string) => (
     <label style={{ marginRight: 14, fontSize: 14 }}>
@@ -62,6 +69,7 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
   return (
     <div style={{ ...tarjeta, maxWidth: 720 }}>
       {msg && <div style={estiloError}>{msg}</div>}
+      <fieldset disabled={!editando} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <label style={etiqueta}>Nombre<input style={campo} value={d.nombre} onChange={(e) => set('nombre', e.target.value)} /></label>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <label style={{ ...etiqueta, flex: '1 1 120px' }}>Código<input style={campo} value={d.codigo} onChange={(e) => set('codigo', e.target.value)} /></label>
@@ -132,9 +140,17 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
           })}
         </>
       )}
+      </fieldset>
       <div style={{ display: 'flex', gap: 10 }}>
-        <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
-        {d.id && (
+        {editando ? (
+          <>
+            <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
+            {!esNuevo && <button type="button" style={botonSecundario} disabled={pend} onClick={cancelar}>Cancelar</button>}
+          </>
+        ) : (
+          <button type="button" style={boton} onClick={() => setEditando(true)}>Editar</button>
+        )}
+        {d.id && !editando && (
           <button type="button" style={botonSecundario} disabled={pend} onClick={() => iniciar(() => archivarProductoAccion(d.id!, !d.activo))}>
             {d.activo ? 'Archivar' : 'Restaurar'}
           </button>

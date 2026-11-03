@@ -196,3 +196,13 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Marca en los documentos:** el logo, los datos fiscales y el color cargados en Ajustes → Empresa y marca salen en el menú, el comprobante de venta, la lista de precios y el cierre de caja.
 - **Frase del día:** solo estoicos célebres (Séneca, Marco Aurelio, Epicteto, Zenón), una por día. Citas con atribución tradicional; las dudosas se rotulan «atribuida».
 - **Mail:** «Enviar por mail» abre el programa de mail de la persona con el mensaje escrito: el comprobante de venta va al mail del cliente con copia al mail de la empresa; el cierre de caja va al mail de la empresa. El PDF se adjunta a mano. El envío automático desde el mail de la empresa necesita credenciales de un servicio de correo (SMTP o proveedor) y queda pendiente de esa decisión.
+
+## D-031 · Pendientes chicos: edición en página, marcar para pedir, informe de productos, PNG y enlaces
+- **Estado:** Aceptada para la etapa 1 (migración 0020, aditiva: `productos.a_pedir`).
+- **Ficha del producto:** se ve tal cual está y «Editar» habilita los campos; «Guardar» confirma y «Cancelar» vuelve a lo último guardado.
+- **Marcar para pedir:** desde la ficha de un producto activo y comprable. Aparece en «Mercadería a pedir» aunque no esté bajo el mínimo (con cantidad mínima 1) y la marca se limpia sola al cerrar una compra que lo incluye. Queda auditado.
+- **Informe de productos:** filtra por texto, rubro, proveedor, dato extra (con un valor o sin valor), si se vende, estado y alerta de stock; descarga CSV. Requiere el permiso de informes.
+- **Movimientos de caja:** el concepto enlaza a la venta, recibo, devolución, compra u orden de pago de origen.
+- **Estadísticas:** cada gráfico se descarga como PNG.
+- **Historial:** «Editar» (ventas y compras cerradas) y «Compartir» (comprobante de venta) en cada fila.
+- **Fuera de este lote, a propósito:** nota de crédito sin venta de origen, compras abiertas y nota de crédito de proveedor, porque tocan el modelo de dinero, cuenta corriente y stock (requieren consulta, según CLAUDE.md).

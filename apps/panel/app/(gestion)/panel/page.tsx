@@ -33,7 +33,7 @@ export default async function Panel() {
   const grupos: GrupoPedir[] = [];
   for (const f of faltantes ?? []) {
     const g = grupos.find((x) => x.proveedorId === f.proveedorId) ?? (grupos.push({ proveedorId: f.proveedorId, proveedor: f.proveedorNombre ?? 'Sin proveedor asignado', items: [] }), grupos[grupos.length - 1]!);
-    g.items.push({ id: f.id, nombre: f.nombre, stock: formatearCantidad(f.stock), cantidad: formatearCantidad(f.cantidad), unidad: f.unidad });
+    g.items.push({ id: f.id, nombre: f.nombre, stock: formatearCantidad(f.stock), cantidad: formatearCantidad(f.cantidad), unidad: f.unidad, marcado: f.marcado });
   }
   const cuando = (d: Date) => new Date(d).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short', timeStyle: 'short' });
 

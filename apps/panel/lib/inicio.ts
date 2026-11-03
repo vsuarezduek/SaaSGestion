@@ -40,7 +40,7 @@ const ENTIDADES: Record<string, [string, string | null]> = {
 };
 const VERBOS: Record<string, string> = {
   crear: 'creó', modificar: 'modificó', anular: 'anuló', archivar: 'archivó', cerrar: 'cerró', abrir: 'abrió', registrar: 'registró', emitir: 'emitió',
-  descartar: 'descartó', desactivar: 'desactivó', reactivar: 'reactivó', transferir: 'transfirió', revertir: 'revirtió', movimiento: 'registró un movimiento en',
+  descartar: 'descartó', desactivar: 'desactivó', marcar_pedir: 'marcó para pedir', desmarcar_pedir: 'quitó de los pedidos', reactivar: 'reactivó', transferir: 'transfirió', revertir: 'revirtió', movimiento: 'registró un movimiento en',
 };
 
 /** «Ana creó un producto», sin datos técnicos. */

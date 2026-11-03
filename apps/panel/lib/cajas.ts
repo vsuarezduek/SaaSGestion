@@ -149,7 +149,7 @@ export async function moverCaja(s: SesionActiva, id: string, direccion: 'arriba'
 
 // ───────── Movimientos ─────────
 export interface MovimientoCaja {
-  id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean; revierteId: string | null; enTransferencia: boolean;
+  id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean; revierteId: string | null; enTransferencia: boolean; origen: string | null;
 }
 
 export async function movimientosDeCaja(s: SesionActiva, cajaId: string, limite = 10): Promise<MovimientoCaja[]> {
@@ -159,14 +159,14 @@ export async function movimientosDeCaja(s: SesionActiva, cajaId: string, limite 
     // El administrador ve los movimientos de todos; los demás, solo los suyos.
     const soloPropios = s.rol !== 'administrador';
     const r = await c.query(
-      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, m.revierte_id::text, m.grupo_id IS NOT NULL AS en_transferencia,
+      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, m.revierte_id::text, m.grupo_id IS NOT NULL AS en_transferencia, m.venta_id, m.recibo_id, m.devolucion_id, m.compra_id, m.orden_pago_id,
               EXISTS (SELECT 1 FROM caja_movimientos x WHERE x.revierte_id = m.id) AS revertido
          FROM caja_movimientos m LEFT JOIN usuarios u ON u.id = m.usuario_id
         WHERE m.caja_id = $1 ${soloPropios ? 'AND m.usuario_id = $2' : ''}
         ORDER BY m.fecha DESC, m.id DESC LIMIT ${Math.min(Math.max(limite, 1), 500)}`,
       soloPropios ? [cajaId, s.usuarioId] : [cajaId],
     );
-    return r.rows.map((f) => ({ id: f.id, tipo: f.tipo, importe: f.importe, concepto: f.concepto, fecha: f.fecha, usuario: f.usuario, revertido: f.revertido, revierteId: f.revierte_id, enTransferencia: f.en_transferencia }));
+    return r.rows.map((f) => ({ id: f.id, tipo: f.tipo, importe: f.importe, concepto: f.concepto, fecha: f.fecha, usuario: f.usuario, revertido: f.revertido, revierteId: f.revierte_id, enTransferencia: f.en_transferencia, origen: enlaceDeOrigen(f) }));
   });
 }
 
@@ -181,6 +181,16 @@ async function insertar(c: PoolClient, s: SesionActiva, caja: Caja, tipo: string
 }
 
 const neg = (n: string): string => deCentavos(-aCentavos(n));
+
+/** A qué pantalla lleva un movimiento según de dónde vino (venta, recibo, devolución, compra u orden de pago). */
+function enlaceDeOrigen(f: { venta_id: string | null; recibo_id: string | null; devolucion_id: string | null; compra_id: string | null; orden_pago_id: string | null }): string | null {
+  if (f.venta_id) return `/ventas/${f.venta_id}`;
+  if (f.recibo_id) return `/recibos/${f.recibo_id}`;
+  if (f.devolucion_id) return `/devoluciones/${f.devolucion_id}`;
+  if (f.compra_id) return `/compras/${f.compra_id}`;
+  if (f.orden_pago_id) return `/ordenes-pago/${f.orden_pago_id}`;
+  return null;
+}
 
 /** Ingreso o egreso manual. La caja tiene que estar abierta. */
 export async function movimientoManual(s: SesionActiva, cajaId: string, entrada: unknown): Promise<string> {
@@ -343,7 +353,7 @@ export async function historialDeCierres(s: SesionActiva, cajaId?: string, limit
 }
 
 // ───────── Detalle de un cierre y reapertura ─────────
-export interface MovimientoDeTurno { id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean }
+export interface MovimientoDeTurno { id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean; origen: string | null }
 export interface DetalleCierre extends Cierre {
   abiertoPor: string | null; aperturaEsperada: string; aperturaContada: string; cierreEsperado: string; cierreContado: string;
   reabreTurnoId: string | null; reaperturaMotivo: string | null; reabiertoPor: string | null; reabierto: boolean;
@@ -368,9 +378,9 @@ export async function detalleDeCierre(s: SesionActiva, turnoId: string): Promise
     const f = r.rows[0];
     if (!f || !ok(f.caja_id)) return null;
     const m = await c.query(
-      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, EXISTS (SELECT 1 FROM caja_movimientos x WHERE x.revierte_id = m.id) AS revertido
+      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, m.venta_id, m.recibo_id, m.devolucion_id, m.compra_id, m.orden_pago_id, EXISTS (SELECT 1 FROM caja_movimientos x WHERE x.revierte_id = m.id) AS revertido
          FROM caja_movimientos m LEFT JOIN usuarios u ON u.id = m.usuario_id WHERE m.turno_id = $1 ORDER BY m.fecha, m.id`, [turnoId]);
-    const movimientos: MovimientoDeTurno[] = m.rows.map((x) => ({ id: x.id, tipo: x.tipo, importe: x.importe, concepto: x.concepto, fecha: x.fecha, usuario: x.usuario, revertido: x.revertido }));
+    const movimientos: MovimientoDeTurno[] = m.rows.map((x) => ({ id: x.id, tipo: x.tipo, importe: x.importe, concepto: x.concepto, fecha: x.fecha, usuario: x.usuario, revertido: x.revertido, origen: enlaceDeOrigen(x) }));
     // Los totales cuentan lo operado (ventas, cobros, gastos): no las diferencias de arqueo ni los traspasos del cierre.
     const operado = movimientos.filter((x) => !x.revertido && !['apertura_diferencia', 'cierre_diferencia', 'traspaso_salida', 'traspaso_entrada'].includes(x.tipo));
     const suma = (signo: 1 | -1) => deCentavos(operado.reduce((a, x) => (Math.sign(aCentavos(x.importe)) === signo ? a + Math.abs(aCentavos(x.importe)) : a), 0));

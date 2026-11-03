@@ -93,7 +93,7 @@ export async function buscarProductosParaCompra(s: SesionActiva, q: string, ids?
   });
 }
 
-export interface Faltante extends ProductoParaCompra { cantidad: string; proveedorId: string | null; proveedorNombre: string | null }
+export interface Faltante extends ProductoParaCompra { cantidad: string; proveedorId: string | null; proveedorNombre: string | null; marcado: boolean }
 
 /** Productos bajo el stock mínimo, con lo que hay que comprar para llegar al stock ideal (o al mínimo, si no hay ideal). */
 export async function faltantesParaComprar(s: SesionActiva, filtro: { proveedorId?: string; ids?: string[] } = {}): Promise<Faltante[]> {
@@ -102,16 +102,17 @@ export async function faltantesParaComprar(s: SesionActiva, filtro: { proveedorI
   return conTenant(s.tenantId, async (c) => {
     const r = await c.query(
       `SELECT * FROM (
-         SELECT p.id, p.nombre, p.codigo, p.unidad, p.iva::text, p.costo::text, p.stock_minimo, p.stock_ideal, p.proveedor_id, pv.nombre AS proveedor_nombre,
+         SELECT p.id, p.nombre, p.codigo, p.unidad, p.iva::text, p.costo::text, p.stock_minimo, p.stock_ideal, p.proveedor_id, p.a_pedir, pv.nombre AS proveedor_nombre,
                 (SELECT COALESCE(sum(sm.cantidad), 0) FROM stock_movimientos sm WHERE sm.producto_id = p.id) AS stock
            FROM productos p LEFT JOIN proveedores pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
-          WHERE p.activo AND p.comprable AND p.stock_minimo > 0
+          WHERE p.activo AND p.comprable
             AND ($1::uuid IS NULL OR p.proveedor_id = $1::uuid) AND (cardinality($2::uuid[]) = 0 OR p.id = ANY($2::uuid[]))) t
-        WHERE stock < stock_minimo ORDER BY lower(proveedor_nombre) NULLS LAST, lower(nombre) LIMIT 200`, [filtro.proveedorId && /^[0-9a-f-]{36}$/i.test(filtro.proveedorId) ? filtro.proveedorId : null, ids]);
+        WHERE a_pedir OR (stock_minimo > 0 AND stock < stock_minimo) ORDER BY lower(proveedor_nombre) NULLS LAST, lower(nombre) LIMIT 200`, [filtro.proveedorId && /^[0-9a-f-]{36}$/i.test(filtro.proveedorId) ? filtro.proveedorId : null, ids]);
     return r.rows.map((f) => {
       const meta = Number(f.stock_ideal) > Number(f.stock) ? Number(f.stock_ideal) : Number(f.stock_minimo);
-      const falta = Math.round((meta - Number(f.stock)) * 1000) / 1000;
-      return { id: f.id, nombre: f.nombre, codigo: f.codigo, unidad: f.unidad, costo: f.costo, iva: Number(f.iva), stock: String(Number(f.stock)), cantidad: String(falta), proveedorId: f.proveedor_id ?? null, proveedorNombre: f.proveedor_nombre ?? null };
+      const hueco = Math.round((meta - Number(f.stock)) * 1000) / 1000;
+      const falta = hueco > 0 ? hueco : 1;   // marcado a mano sin faltante calculado: se propone 1
+      return { id: f.id, nombre: f.nombre, codigo: f.codigo, unidad: f.unidad, costo: f.costo, iva: Number(f.iva), stock: String(Number(f.stock)), cantidad: String(falta), proveedorId: f.proveedor_id ?? null, proveedorNombre: f.proveedor_nombre ?? null, marcado: f.a_pedir };
     });
   });
 }
@@ -200,6 +201,7 @@ export async function cerrarCompra(s: SesionActiva, entrada: unknown): Promise<R
         [compraId, i + 1, r.productoId, r.descripcion, r.cantidad, r.costo, r.descuentoPct, r.iva, deCentavos(k.subtotal), deCentavos(k.neto), deCentavos(k.iva)],
       );
       if (!r.productoId) continue;
+      await c.query('UPDATE productos SET a_pedir = false WHERE id = $1 AND a_pedir', [r.productoId]);   // ya se pidió
       await c.query(
         `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, usuario_id, compra_id)
          VALUES (app.tenant_id(), $1, 'compra', $2, $3, $4, $5)`,
