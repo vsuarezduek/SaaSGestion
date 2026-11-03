@@ -188,3 +188,11 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Actividad por usuario:** ventas de hoy y del mes y sus últimas acciones, en la ficha del usuario.
 - **Empresa:** nombre, razón social, CUIT, condición de IVA, domicilio, contacto y color de marca por comercio (requiere el permiso de ajustes; verla, no). El logo es PNG o JPG de hasta 300 KB, reconocido por su contenido (no por el nombre) y guardado en la base; no se acepta SVG porque puede llevar scripts. Se sirve solo a quien ingresó, con cabeceras que impiden ejecutarlo. Aparece en el menú, la lista de precios y el cierre de caja imprimible.
 - **Pendiente:** el comprobante de venta todavía no lleva el logo; el color solo se usa en el menú y los encabezados impresos, no en toda la interfaz.
+
+## D-030 · Cajas en Ajustes, marca en comprobantes y mail
+- **Estado:** Aceptada para la etapa 1 (migración 0019, aditiva: `orden` en `medio_pago_cajas`).
+- **Cajas y medios de pago en Ajustes:** crear, editar (nombre, tipo, impuesto por transacción), ordenar y archivar cajas. Una caja se archiva solo si está cerrada y sin saldo; no se borra, sus movimientos quedan y se puede reactivar. Los medios de pago se editan en la misma pantalla.
+- **Caja preferida del medio:** el orden en que se tildan las cajas de un medio queda guardado; al cobrar con ese medio se propone la primera que esté abierta (la persona puede cambiarla).
+- **Marca en los documentos:** el logo, los datos fiscales y el color cargados en Ajustes → Empresa y marca salen en el menú, el comprobante de venta, la lista de precios y el cierre de caja.
+- **Frase del día:** solo estoicos célebres (Séneca, Marco Aurelio, Epicteto, Zenón), una por día. Citas con atribución tradicional; las dudosas se rotulan «atribuida».
+- **Mail:** «Enviar por mail» abre el programa de mail de la persona con el mensaje escrito: el comprobante de venta va al mail del cliente con copia al mail de la empresa; el cierre de caja va al mail de la empresa. El PDF se adjunta a mano. El envío automático desde el mail de la empresa necesita credenciales de un servicio de correo (SMTP o proveedor) y queda pendiente de esa decisión.

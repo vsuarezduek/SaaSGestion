@@ -4,6 +4,7 @@ import { listaDePrecios } from '../../../lib/productosArchivos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 import { obtenerEmpresa } from '../../../lib/empresa.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
+import EncabezadoEmpresa from '../EncabezadoEmpresa.tsx';
 import BotonImprimir from './BotonImprimir.tsx';
 import { filtroDe, type ParamsLista } from './filtro.ts';
 
@@ -46,12 +47,7 @@ export default async function ListaDePrecios({ searchParams }: { searchParams: P
         <br />
         <BotonImprimir /> <a href={`/comprobante/listas/csv?${consulta}`} style={{ marginLeft: 10 }}>Bajar CSV</a>
       </form>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: `3px solid ${comercio.color}`, paddingBottom: 8 }}>
-        {comercio.tieneLogo && <img src="/empresa/logo" alt="" style={{ maxHeight: 70, maxWidth: 160 }} />}
-        <div style={{ fontSize: 24, fontFamily: 'Georgia, serif' }}><b>{comercio.nombre}</b>
-          <div style={{ fontSize: 12, fontFamily: 'sans-serif', color: '#5c6d66' }}>{[comercio.domicilio, comercio.localidad, comercio.telefono, comercio.web].filter(Boolean).join(' · ')}</div>
-        </div>
-      </div>
+      <EncabezadoEmpresa empresa={comercio} />
       <div style={{ color: '#5c6d66', marginBottom: 10 }}>Lista de precios · {new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })} · precios con IVA incluido</div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr><th style={celda}>Código</th><th style={celda}>Producto</th><th style={celda}>Rubro</th>{lista.listas.map((n) => (<th key={n} style={celda}>{n}</th>))}{lista.mostrarStock && <th style={celda}>Stock</th>}</tr></thead>

@@ -38,7 +38,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Órdenes de pago a proveedores | ✅ | Desde la cuenta corriente del proveedor o de una compra; se anulan con inversos |
 | Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
 | Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ✅ | En la ficha de cliente y de proveedor |
-| Proveedor: productos del proveedor, cargar compra de faltantes | ⬜ | |
+| Proveedor: productos del proveedor, cargar compra de faltantes | ✅ | |
 | Informes de clientes y proveedores (deudores, top 10, etc.) | ✅ | `/informes`, con período, «solo con saldo» y CSV |
 | Saldos iniciales: herramienta de importación | ✅ | Columna Saldo en la importación de clientes y proveedores |
 
@@ -47,20 +47,20 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Venta: cliente, comprobante, fecha, lista, renglones, ítem libre, descuento por renglón | ✅ | |
 | Medios de pago con cajas habilitadas y comisión; neto a cobrar | ✅ | |
-| Transferencia elige automáticamente Alias Banco (primera caja preferida del medio) | ⬜ | v42; en el real depende de la configuración del medio |
+| Transferencia elige automáticamente Alias Banco (primera caja preferida del medio) | ✅ | La primera caja que se tilda en el medio es la que se propone (D-030) |
 | Cuenta corriente (solo si la categoría la permite) | ✅ | |
 | Cerrar venta atómico (caja, comisión, cta. cte., stock) e idempotente | ✅ | |
 | Actualizar precios | ✅ | |
 | Listado y detalle de venta | ✅ | |
 | Anular venta (movimientos inversos, con motivo) | ✅ | En el prototipo "Eliminar" |
 | **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ✅ | v43–v44. Alternador % / $ total, con el ajuste en ambas unidades (D-013 ampliada) |
-| Enter en precio/descuento salta a buscar otro producto | ⬜ | v42 |
+| Enter en precio/descuento salta a buscar otro producto | ✅ | |
 | Productos nuevos arriba y cursor en cantidad | 🟡 | Verificar |
 | Editar una venta cerrada | ✅ | D-020. Anula la original y crea la nueva en una sola transacción |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
 | Nota de crédito y devolución | 🟡 | D-018. Desde la venta, con devolución a caja o cuenta corriente. Falta nota sin venta de origen y comprobante electrónico |
-| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. Comprobante imprimible / "Guardar como PDF" con IVA por alícuota. Falta el email (necesita un servicio de correo) |
+| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Falta el envío automático con el PDF adjunto |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
 ## Compras
@@ -73,9 +73,10 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Función | Estado | Nota |
 |---|---|---|
 | Cajas, apertura con arqueo, cierre, dejar de cambio y traspaso | ✅ | |
+| Configurar cajas y medios de pago desde Ajustes (crear, editar, ordenar, archivar) | ✅ | Ajustes → Cajas y medios de pago (D-030) |
 | Movimientos manuales, transferencias, anulaciones, caja cerrada bloqueada | ✅ | |
 | Visibilidad por usuario | ✅ | |
-| Historial de cierres | 🟡 | Listado y detalle de cada cierre (arqueo, totales, movimientos) con PDF por imprimir; falta el envío por mail (hay que elegir proveedor de correo) |
+| Historial de cierres | ✅ | Listado y detalle de cada cierre con PDF por imprimir y «Enviar por mail» al mail de la empresa |
 | Reabrir el mismo día (admin + motivo) | ✅ | D-028 |
 | Impuesto por transacción por caja | ✅ | Se aplica en compras y órdenes de pago |
 | Movimientos con su venta/compra de origen clickeable | 🟡 | Verificar enlaces |
@@ -88,7 +89,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Historial de actividad (administrador) | ✅ | En palabras, con enlace; requiere permiso de ajustes |
 | **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ✅ | D-027 |
 | Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; falta PNG |
-| Frase del día | 🟡 | Una por día de una lista fija; falta que cada comercio la configure |
+| Frase del día | ✅ | Una por día, de estoicos célebres (Séneca, Marco Aurelio, Epicteto, Zenón) |
 
 ## Ajustes y usuarios
 | Función | Estado | Nota |

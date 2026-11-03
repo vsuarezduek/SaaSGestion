@@ -56,7 +56,9 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const enterABuscar = (e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); buscarRef.current?.focus(); } };
 
   const medio = medios.find((m) => m.id === medioId) ?? null;
-  const cajasDelMedio = medio ? cajas.filter((c) => medio.cajaIds.includes(c.id)) : [];
+  // En el orden de preferencia del medio: la primera se propone sola.
+  const cajasDeMedio = (m: { cajaIds: string[] } | null | undefined) => (m ? m.cajaIds.map((id) => cajas.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => Boolean(c)) : []);
+  const cajasDelMedio = cajasDeMedio(medio);
 
   const calculo = useMemo(() => {
     try {
@@ -314,7 +316,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
           {cobroTipo === 'caja' && (
             <>
               <label style={{ ...etiqueta, flex: '1 1 160px', marginBottom: 0 }}>Medio de pago
-                <select style={campo} value={medioId} onChange={(e) => { setMedioId(e.target.value); setCajaId(''); }}>
+                <select style={campo} value={medioId} onChange={(e) => { setMedioId(e.target.value); setCajaId(cajasDeMedio(medios.find((m) => m.id === e.target.value))[0]?.id ?? ''); }}>
                   <option value="">Elegir…</option>{medios.map((m) => (<option key={m.id} value={m.id}>{m.nombre}</option>))}
                 </select>
               </label>

@@ -65,12 +65,19 @@ export async function actividadReciente(s: SesionActiva, limite = 15): Promise<A
 }
 
 export const FRASES: readonly { texto: string; autor: string }[] = [
-  { texto: 'Que tu alimento sea tu medicina y tu medicina sea tu alimento.', autor: 'Hipócrates' },
-  { texto: 'Conócete a ti mismo.', autor: 'Sócrates' },
   { texto: 'No es que tengamos poco tiempo, sino que perdemos mucho.', autor: 'Séneca' },
-  { texto: 'Tienes poder sobre tu mente, no sobre los acontecimientos. Comprende esto y hallarás la fuerza.', autor: 'Marco Aurelio' },
+  { texto: 'Sufrimos más a menudo en la imaginación que en la realidad.', autor: 'Séneca' },
+  { texto: 'Ningún viento es favorable para quien no sabe a qué puerto se dirige.', autor: 'Séneca' },
+  { texto: 'Mientras aplazamos la vida, ella se pasa.', autor: 'Séneca' },
+  { texto: 'Lo que se interpone en el camino se convierte en el camino.', autor: 'Marco Aurelio' },
+  { texto: 'La mejor venganza es no ser como quien te hizo daño.', autor: 'Marco Aurelio' },
+  { texto: 'Si algo no es correcto, no lo hagas; si no es verdad, no lo digas.', autor: 'Marco Aurelio' },
+  { texto: 'Lo que no beneficia al enjambre, tampoco beneficia a la abeja.', autor: 'Marco Aurelio' },
+  { texto: 'Muy poco hace falta para tener una vida feliz.', autor: 'Marco Aurelio' },
   { texto: 'No son las cosas las que nos perturban, sino la opinión que tenemos de ellas.', autor: 'Epicteto' },
-  { texto: 'Quien tiene un porqué para vivir puede soportar casi cualquier cómo.', autor: 'Nietzsche' },
+  { texto: 'Hay cosas que dependen de nosotros y cosas que no dependen de nosotros.', autor: 'Epicteto' },
+  { texto: 'Primero dite a vos mismo lo que querés ser; después hacé lo que tengas que hacer.', autor: 'Epicteto' },
+  { texto: 'Tenemos dos orejas y una sola boca para escuchar el doble de lo que hablamos.', autor: 'Zenón de Citio (atribuida)' },
 ];
 
 /** Una frase por día, igual para todos y estable durante el día. */
