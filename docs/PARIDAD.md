@@ -75,8 +75,8 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Cajas, apertura con arqueo, cierre, dejar de cambio y traspaso | ✅ | |
 | Movimientos manuales, transferencias, anulaciones, caja cerrada bloqueada | ✅ | |
 | Visibilidad por usuario | ✅ | |
-| Historial de cierres | 🟡 | Hay listado; falta el detalle con PDF y mail |
-| Reabrir el mismo día (admin + motivo) | ⬜ | |
+| Historial de cierres | 🟡 | Listado y detalle de cada cierre (arqueo, totales, movimientos) con PDF por imprimir; falta el envío por mail (hay que elegir proveedor de correo) |
+| Reabrir el mismo día (admin + motivo) | ✅ | D-028 |
 | Impuesto por transacción por caja | ✅ | Se aplica en compras y órdenes de pago |
 | Movimientos con su venta/compra de origen clickeable | 🟡 | Verificar enlaces |
 

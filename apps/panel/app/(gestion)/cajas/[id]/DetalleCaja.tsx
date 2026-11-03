@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
-import { abrirCajaAccion, anularAccion, cerrarCajaAccion, movimientoCajaAccion, transferirAccion } from '../acciones.ts';
+import { abrirCajaAccion, anularAccion, cerrarCajaAccion, movimientoCajaAccion, reabrirCajaAccion, transferirAccion } from '../acciones.ts';
 
 interface Props {
   caja: { id: string; nombre: string; tipo: string; abierta: boolean; saldo: string; saldoCrudo: string };
@@ -10,13 +10,15 @@ interface Props {
   otras: { id: string; nombre: string; abierta: boolean }[];
   movimientos: { id: string; fecha: string; tipo: string; concepto: string; importe: string; usuario: string; revertido: boolean }[];
   verTodos: boolean;
+  reabrible: string | null;
 }
 const TIPOS: Record<string, string> = {
   ingreso: 'Ingreso', egreso: 'Egreso', transferencia_salida: 'Transferencia', transferencia_entrada: 'Transferencia', apertura_diferencia: 'Dif. apertura',
   cierre_diferencia: 'Dif. cierre', traspaso_salida: 'Traspaso', traspaso_entrada: 'Traspaso', reversion: 'Anulación',
 };
 
-export default function DetalleCaja({ caja, resumen, otras, movimientos, verTodos }: Props) {
+export default function DetalleCaja({ caja, resumen, otras, movimientos, verTodos, reabrible }: Props) {
+  const [motivo, setMotivo] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const [apertura, setApertura] = useState('');
@@ -45,6 +47,18 @@ export default function DetalleCaja({ caja, resumen, otras, movimientos, verTodo
         )}
       </div>
 
+      {!caja.abierta && reabrible && (
+        <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0' }}>
+          <b>Reabrir el cierre de hoy</b>
+          <p style={{ fontSize: 13, color: '#5c6d66' }}>Se anulan la diferencia de arqueo y el traspaso del cierre y la caja sigue con su saldo. Queda registrado con el motivo. Solo administración.</p>
+          <div style={fila}>
+            <label style={cel('2 1 220px')}>Motivo<input style={campo} value={motivo} maxLength={200} onChange={(e) => setMotivo(e.target.value)} /></label>
+            <button type="button" style={boton} disabled={pend || !motivo.trim()} onClick={() => {
+              if (window.confirm('¿Reabrir la caja?')) correr(() => reabrirCajaAccion(caja.id, motivo), () => setMotivo(''));
+            }}>Reabrir caja</button>
+          </div>
+        </div>
+      )}
       {!caja.abierta ? (
         <div style={tarjeta}>
           <b>Abrir caja</b>

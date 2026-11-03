@@ -21,7 +21,7 @@ export default async function Cierres() {
           <tbody>
             {cierres.map((c) => (
               <tr key={c.id}>
-                <td style={celda}>{fecha(c.cerradoEn)}</td><td style={celda}><Link href={`/cajas/${c.cajaId}`} style={{ color: '#1c9764' }}>{c.caja}</Link></td>
+                <td style={celda}><Link href={`/cajas/cierres/${c.id}`} style={{ color: '#1c9764' }}>{fecha(c.cerradoEn)}</Link></td><td style={celda}><Link href={`/cajas/${c.cajaId}`} style={{ color: '#1c9764' }}>{c.caja}</Link></td>
                 <td style={celda}>{$(c.esperado)}</td><td style={celda}>{$(c.contado)}</td>
                 <td style={{ ...celda, color: Number(c.diferencia) < 0 ? '#b4571a' : 'inherit' }}>{$(c.diferencia)}</td>
                 <td style={celda}>{$(c.cambioDejado)}</td><td style={celda}>{c.traspaso ? `${$(c.traspaso)} → ${c.destino}` : ''}</td><td style={celda}>{c.usuario ?? ''}</td>

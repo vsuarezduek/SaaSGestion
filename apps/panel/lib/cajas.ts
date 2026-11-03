@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { auditar, ErrorDeUsuario, type SesionActiva } from './auth.ts';
 import { conTenant } from './db.ts';
-import { exigir } from './permisos.ts';
+import { ErrorDePermiso, exigir } from './permisos.ts';
 import {
   esquemaApertura, esquemaCaja, esquemaCierre, esquemaMovimientoCaja, esquemaTransferencia, primerError,
 } from './validacion.ts';
@@ -290,5 +290,108 @@ export async function historialDeCierres(s: SesionActiva, cajaId?: string, limit
       id: f.id, caja: f.caja, cajaId: f.caja_id, abiertoEn: f.abierto_en, cerradoEn: f.cerrado_en, esperado: f.esperado, contado: f.contado,
       diferencia: f.diferencia, cambioDejado: f.cambio, traspaso: f.traspaso, destino: f.destino, usuario: f.usuario,
     }));
+  });
+}
+
+// ───────── Detalle de un cierre y reapertura ─────────
+export interface MovimientoDeTurno { id: string; tipo: string; importe: string; concepto: string | null; fecha: Date; usuario: string | null; revertido: boolean }
+export interface DetalleCierre extends Cierre {
+  abiertoPor: string | null; aperturaEsperada: string; aperturaContada: string; cierreEsperado: string; cierreContado: string;
+  reabreTurnoId: string | null; reaperturaMotivo: string | null; reabiertoPor: string | null; reabierto: boolean;
+  ingresos: string; egresos: string; movimientos: MovimientoDeTurno[];
+}
+
+/** Todo lo que pasó en un turno cerrado: arqueo de apertura y cierre, totales y cada movimiento. */
+export async function detalleDeCierre(s: SesionActiva, turnoId: string): Promise<DetalleCierre | null> {
+  exigir(s, 'cajas');
+  if (!UUID.test(turnoId)) return null;
+  return conTenant(s.tenantId, async (c) => {
+    const ok = await visibles(c, s);
+    const r = await c.query(
+      `SELECT t.id, k.nombre AS caja, t.caja_id, t.abierto_en, t.cerrado_en, t.apertura_esperada::text AS ap_esp, t.apertura_contada::text AS ap_con,
+              t.cierre_esperado::text AS esperado, t.cierre_contado::text AS contado, (t.cierre_contado - t.cierre_esperado)::text AS diferencia,
+              COALESCE(t.cambio_dejado, 0)::text AS cambio, t.traspaso_importe::text AS traspaso, d.nombre AS destino, u.nombre AS usuario, ua.nombre AS abierto_por,
+              t.reabre_turno_id, t.reapertura_motivo,
+              (SELECT x.id FROM caja_turnos x WHERE x.reabre_turno_id = t.id) AS reabierto_id
+         FROM caja_turnos t JOIN cajas k ON k.id = t.caja_id LEFT JOIN cajas d ON d.id = t.traspaso_caja_id
+         LEFT JOIN usuarios u ON u.id = t.cerrado_por LEFT JOIN usuarios ua ON ua.id = t.abierto_por
+        WHERE t.id = $1 AND t.cerrado_en IS NOT NULL`, [turnoId]);
+    const f = r.rows[0];
+    if (!f || !ok(f.caja_id)) return null;
+    const m = await c.query(
+      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, EXISTS (SELECT 1 FROM caja_movimientos x WHERE x.revierte_id = m.id) AS revertido
+         FROM caja_movimientos m LEFT JOIN usuarios u ON u.id = m.usuario_id WHERE m.turno_id = $1 ORDER BY m.fecha, m.id`, [turnoId]);
+    const movimientos: MovimientoDeTurno[] = m.rows.map((x) => ({ id: x.id, tipo: x.tipo, importe: x.importe, concepto: x.concepto, fecha: x.fecha, usuario: x.usuario, revertido: x.revertido }));
+    // Los totales cuentan lo operado (ventas, cobros, gastos): no las diferencias de arqueo ni los traspasos del cierre.
+    const operado = movimientos.filter((x) => !x.revertido && !['apertura_diferencia', 'cierre_diferencia', 'traspaso_salida', 'traspaso_entrada'].includes(x.tipo));
+    const suma = (signo: 1 | -1) => deCentavos(operado.reduce((a, x) => (Math.sign(aCentavos(x.importe)) === signo ? a + Math.abs(aCentavos(x.importe)) : a), 0));
+    return {
+      id: f.id, caja: f.caja, cajaId: f.caja_id, abiertoEn: f.abierto_en, cerradoEn: f.cerrado_en, esperado: f.esperado, contado: f.contado, diferencia: f.diferencia,
+      cambioDejado: f.cambio, traspaso: f.traspaso, destino: f.destino, usuario: f.usuario, abiertoPor: f.abierto_por,
+      aperturaEsperada: f.ap_esp, aperturaContada: f.ap_con, cierreEsperado: f.esperado, cierreContado: f.contado,
+      reabreTurnoId: f.reabre_turno_id, reaperturaMotivo: f.reapertura_motivo, reabiertoPor: f.reabre_turno_id ? f.abierto_por : null, reabierto: f.reabierto_id !== null,
+      ingresos: suma(1), egresos: suma(-1), movimientos,
+    };
+  });
+}
+
+/**
+ * Reabre una caja cerrada el mismo día (hora de Argentina). Solo administración y con motivo.
+ * El cierre queda como estaba: se anulan con movimientos inversos la diferencia de arqueo y el traspaso que generó,
+ * y se abre un turno nuevo que continúa el anterior con el saldo resultante.
+ */
+export async function reabrirCaja(s: SesionActiva, cajaId: string, motivo: string): Promise<void> {
+  exigir(s, 'cajas');
+  if (s.rol !== 'administrador') throw new ErrorDePermiso('Solo un administrador puede reabrir una caja');
+  const razon = (motivo ?? '').trim();
+  if (!razon) throw new ErrorDeUsuario('Indicá el motivo de la reapertura');
+  if (razon.length > 200) throw new ErrorDeUsuario('El motivo es demasiado largo (máximo 200 caracteres)');
+  await conTenant(s.tenantId, async (c) => {
+    await cajaEn(c, s, cajaId);
+    await c.query('SELECT 1 FROM cajas WHERE id = $1 FOR UPDATE', [cajaId]);
+    const caja = await cajaEn(c, s, cajaId);
+    if (caja.turnoId) throw new ErrorDeUsuario('La caja ya está abierta');
+    const t = await c.query<{ id: string; mismo_dia: boolean; reabierto: boolean }>(
+      `SELECT t.id, ((t.cerrado_en AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = (now() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date) AS mismo_dia,
+              EXISTS (SELECT 1 FROM caja_turnos x WHERE x.reabre_turno_id = t.id) AS reabierto
+         FROM caja_turnos t WHERE t.caja_id = $1 AND t.cerrado_en IS NOT NULL ORDER BY t.cerrado_en DESC LIMIT 1`, [cajaId]);
+    const ultimo = t.rows[0];
+    if (!ultimo) throw new ErrorDeUsuario('Esta caja no tiene cierres para reabrir');
+    if (!ultimo.mismo_dia) throw new ErrorDeUsuario('Solo se puede reabrir una caja cerrada hoy');
+    if (ultimo.reabierto) throw new ErrorDeUsuario('Ese cierre ya fue reabierto');
+    // Lo que generó el cierre: la diferencia de arqueo y el traspaso (con su punta en la otra caja).
+    const gen = await c.query<{ id: string; caja_id: string; importe: string }>(
+      `SELECT m.id::text, m.caja_id, m.importe::text FROM caja_movimientos m
+        WHERE (m.turno_id = $1 AND m.tipo IN ('cierre_diferencia', 'traspaso_salida'))
+           OR m.grupo_id IN (SELECT g.grupo_id FROM caja_movimientos g WHERE g.turno_id = $1 AND g.tipo = 'traspaso_salida' AND g.grupo_id IS NOT NULL)
+        ORDER BY m.id`, [ultimo.id]);
+    for (const m of gen.rows) {
+      const ya = await c.query('SELECT 1 FROM caja_movimientos WHERE revierte_id = $1', [m.id]);
+      if (ya.rowCount) continue;
+      await c.query(
+        `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, grupo_id, revierte_id, usuario_id)
+         VALUES (app.tenant_id(), $1, NULL, 'reversion', $2, 'Reapertura de caja', NULL, $3, $4)`, [m.caja_id, neg(m.importe), m.id, s.usuarioId]);
+    }
+    const saldo = (await c.query<{ s: string }>('SELECT COALESCE(sum(importe), 0)::numeric(14,2)::text AS s FROM caja_movimientos WHERE caja_id = $1', [cajaId])).rows[0]!.s;
+    await c.query(
+      `INSERT INTO caja_turnos (tenant_id, caja_id, abierto_por, apertura_esperada, apertura_contada, reabre_turno_id, reapertura_motivo)
+       VALUES (app.tenant_id(), $1, $2, $3, $3, $4, $5)`, [cajaId, s.usuarioId, saldo, ultimo.id, razon]);
+    await auditar(c, s.usuarioId, 'reabrir', 'caja', { motivo: razon, cierre: ultimo.id, saldo }, { entidadId: cajaId });
+  });
+}
+
+/** El cierre de hoy que se puede reabrir (solo administración, caja cerrada y sin reabrir antes), o null. */
+export async function cierreReabrible(s: SesionActiva, cajaId: string): Promise<string | null> {
+  exigir(s, 'cajas');
+  if (s.rol !== 'administrador' || !UUID.test(cajaId)) return null;
+  return conTenant(s.tenantId, async (c) => {
+    const caja = await cajaEn(c, s, cajaId);
+    if (caja.turnoId) return null;
+    const r = await c.query<{ id: string }>(
+      `SELECT t.id FROM caja_turnos t WHERE t.caja_id = $1 AND t.cerrado_en IS NOT NULL
+          AND (t.cerrado_en AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = (now() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date
+          AND NOT EXISTS (SELECT 1 FROM caja_turnos x WHERE x.reabre_turno_id = t.id)
+        ORDER BY t.cerrado_en DESC LIMIT 1`, [cajaId]);
+    return r.rows[0]?.id ?? null;
   });
 }
