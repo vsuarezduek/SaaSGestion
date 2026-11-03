@@ -31,8 +31,8 @@ after(async () => {
 });
 
 test('el detalle de un cierre muestra arqueo, totales y movimientos', async () => {
-  await movimientoManual(A, efectivo, { tipo: 'ingreso', importe: '500', concepto: 'Cobro', fecha: null });
-  await movimientoManual(A, efectivo, { tipo: 'egreso', importe: '200', concepto: 'Gasto', fecha: null });
+  await movimientoManual(A, efectivo, { tipo: 'ingreso', importe: '500', concepto: 'Cobro' });
+  await movimientoManual(A, efectivo, { tipo: 'egreso', importe: '200', concepto: 'Gasto' });
   // Esperado 1300; se cuentan 1290 (faltan 10), se dejan 100 de cambio y el resto va al banco.
   await cerrarCaja(A, efectivo, { contado: '1290', cambioDejado: '100', destinoId: banco });
   const [cierre] = await historialDeCierres(A, efectivo);
