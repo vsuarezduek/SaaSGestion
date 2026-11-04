@@ -5,7 +5,7 @@ import { puede, type Rol } from '../../../../../../../packages/seguridad/src/ind
 import { sesionActual } from '../../../../../lib/sesion.ts';
 
 export const dynamic = 'force-dynamic';
-export const COOKIE_ESTADO = 'sg_correo_estado';
+const COOKIE_ESTADO = 'sg_correo_estado';
 const base = () => (process.env.CORREO_URL_BASE ?? '').replace(/\/+$/, '');
 const volver = (q: string, extra: HeadersInit = {}) => new Response(null, { status: 303, headers: { location: `${base()}/ajustes/correo?${q}`, ...extra } });
 
