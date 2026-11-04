@@ -6,6 +6,9 @@ import { ETIQUETAS_COMPROBANTE as ETIQUETAS } from '../../../../lib/etiquetas.ts
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import AnularCompra from './AnularCompra.tsx';
+import { obtenerConexion } from '../../../../lib/correo.ts';
+import { obtenerProveedor } from '../../../../lib/personas.ts';
+import EnviarPorMail from '../../../comprobante/EnviarPorMail.tsx';
 
 export const dynamic = 'force-dynamic';
 const MODOS: Record<string, string> = { ninguno: 'No actualizar costos', costo: 'Actualizar costo, no modificar precio', costo_y_precio: 'Actualizar costo y mantener rentabilidad' };
@@ -15,6 +18,8 @@ export default async function Compra({ params }: { params: Promise<{ id: string 
   const s = await sesionObligatoria();
   const c = await obtenerCompra(s, id);
   if (!c) notFound();
+  const conexion = await obtenerConexion(s);
+  const proveedor = conexion ? await obtenerProveedor(s, c.proveedorId).catch(() => null) : null;
   const $ = (n: string) => formatearPesos(aCentavos(n));
   const hora = (d: Date) => d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
   const celda = { padding: '6px 8px', borderBottom: '1px solid #d3e6de', fontSize: 14, textAlign: 'left' as const };
@@ -57,6 +62,7 @@ export default async function Compra({ params }: { params: Promise<{ id: string 
       {c.ordenesPago.length > 0 && (
         <div style={aviso}>Órdenes de pago de esta compra: {c.ordenesPago.map((o, i) => (<span key={o.id}>{i > 0 ? ', ' : ''}<Link href={`/ordenes-pago/${o.id}`} style={{ color: '#1b5f63', fontWeight: 600 }}>N° {o.numero} ({$(o.importe)}{o.estado === 'anulada' ? ', anulada' : ''})</Link></span>))}</div>
       )}
+      {conexion && (<div style={tarjeta}><b>Enviar por mail</b> <EnviarPorMail tipo="compra" id={c.id} destino={proveedor?.email ?? ''} cuenta={conexion.cuenta} /></div>)}
       {c.estado === 'cerrada' && <Link href={`/compras/nueva?editar=${c.id}`} style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Editar</Link>}
       {c.estado === 'cerrada' && <AnularCompra id={c.id} numero={c.numero} />}
     </main>
