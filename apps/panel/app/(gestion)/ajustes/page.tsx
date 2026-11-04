@@ -16,6 +16,7 @@ export default async function Ajustes() {
       {puede(u, 'ajustes') && <div style={tarjeta}><Link href="/ajustes/empresa" style={enlace}>Empresa y marca</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Datos fiscales, logo y color que salen en listas de precios y comprobantes.</div></div>}
       {puede(u, 'ajustes') && <div style={tarjeta}><Link href="/ajustes/cajas" style={enlace}>Cajas y medios de pago</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Crear, ordenar y archivar cajas; qué cajas usa cada medio de pago y sus comisiones.</div></div>}
       {puede(u, 'ajustes') && <div style={tarjeta}><Link href="/productos/costos-fijos" style={enlace}>Costos fijos</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Alquiler, luz, personal… repartidos en el costo de lo que se elabora.</div></div>}
+      {puede(u, 'ajustes') && <div style={tarjeta}><Link href="/ajustes/correo" style={enlace}>Correo</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Conectar tu Gmail u Outlook para enviar comprobantes de venta y de compra por mail.</div></div>}
       <div style={tarjeta}><Link href="/cuenta" style={enlace}>Mi cuenta</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Cambiar tu contraseña o tu PIN.</div></div>
       <div style={tarjeta}><Link href="/operador" style={enlace}>Cambiar de operador</Link><div style={{ fontSize: 13, color: '#5c6d66' }}>Pasar el mostrador a otra persona con su PIN.</div></div>
     </main>

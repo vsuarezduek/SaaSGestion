@@ -657,4 +657,29 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM empresa WHERE razon_social = 'Hackeado') <> 0 THEN RAISE EXCEPTION 'B modificó la empresa de A'; END IF;
 END $$;
 
+-- 25) Correo: una conexión por comercio, aislada; el registro de envíos solo se agrega.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  INSERT INTO correo_conexion (tenant_id, proveedor, cuenta, token_cifrado) VALUES (app.tenant_id(), 'google', 'a@gmail.com', 'v1.aaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccc');
+  BEGIN INSERT INTO correo_conexion (tenant_id, proveedor, cuenta, token_cifrado) VALUES (app.tenant_id(), 'google', 'otra@gmail.com', 'v1.aaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccc'); RAISE EXCEPTION 'permitió dos conexiones del mismo comercio';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN UPDATE correo_conexion SET proveedor = 'yahoo'; RAISE EXCEPTION 'permitió un proveedor desconocido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO correo_envios (tenant_id, tipo, entidad_id, para, asunto, resultado) VALUES (app.tenant_id(), 'venta', gen_random_uuid(), 'x@y.com', 'Venta N° 1', 'enviado');
+  BEGIN UPDATE correo_envios SET resultado = 'error'; RAISE EXCEPTION 'permitió modificar el registro de envíos';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN DELETE FROM correo_envios; RAISE EXCEPTION 'permitió borrar el registro de envíos';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM correo_conexion) <> 0 THEN RAISE EXCEPTION 'B ve la casilla de A'; END IF;
+  IF (SELECT count(*) FROM correo_envios) <> 0 THEN RAISE EXCEPTION 'B ve los envíos de A'; END IF;
+  DELETE FROM correo_conexion;
+END $$;
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM correo_conexion) <> 1 THEN RAISE EXCEPTION 'B desconectó la casilla de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

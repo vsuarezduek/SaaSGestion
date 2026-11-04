@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { ETIQUETAS_COMPROBANTE as ETIQUETAS } from '../../../../lib/etiquetas.ts';
 import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { enlaceDeMail } from '../../../../lib/mail.ts';
+import { obtenerConexion } from '../../../../lib/correo.ts';
+import EnviarPorMail from '../../EnviarPorMail.tsx';
 import { obtenerCliente } from '../../../../lib/personas.ts';
 import { obtenerEmpresa } from '../../../../lib/empresa.ts';
 import { obtenerVenta } from '../../../../lib/ventas.ts';
@@ -15,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export default async function Comprobante({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await sesionObligatoria();
-  const [v, comercio] = await Promise.all([obtenerVenta(s, id), obtenerEmpresa(s)]);
+  const [v, comercio, conexion] = await Promise.all([obtenerVenta(s, id), obtenerEmpresa(s), obtenerConexion(s)]);
   if (!v) notFound();
   const $ = (n: string | number) => formatearPesos(typeof n === 'number' ? n : aCentavos(n));
   const esNota = v.comprobante === 'nota_credito';
@@ -44,8 +46,14 @@ export default async function Comprobante({ params }: { params: Promise<{ id: st
       <style>{'@media print { .no-imprimir { display: none !important; } body { background: #fff !important; } main { padding: 0 !important; } }'}</style>
       <div className="no-imprimir" style={{ marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <BotonImprimir />
-        <a href={mail} style={{ color: '#1c9764', fontWeight: 600 }}>Enviar por mail</a>
-        <span style={{ fontSize: 12, color: '#5c6d66' }}>Se abre tu programa de mail con el texto escrito{cliente?.email ? '' : ' (el cliente no tiene mail cargado)'}; el PDF lo adjuntás desde «Guardar como PDF».</span>
+        {conexion ? (
+          <EnviarPorMail tipo="venta" id={v.id} destino={cliente?.email ?? ''} cuenta={conexion.cuenta} />
+        ) : (
+          <>
+            <a href={mail} style={{ color: '#1c9764', fontWeight: 600 }}>Enviar por mail</a>
+            <span style={{ fontSize: 12, color: '#5c6d66' }}>Se abre tu programa de mail con el texto escrito{cliente?.email ? '' : ' (el cliente no tiene mail cargado)'}. Para enviarlo directo con el comprobante, conectá tu casilla en Ajustes → Correo.</span>
+          </>
+        )}
       </div>
       <EncabezadoEmpresa empresa={comercio} hijos={
         <div style={{ textAlign: 'right', fontSize: 14 }}>

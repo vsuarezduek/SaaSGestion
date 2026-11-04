@@ -206,3 +206,11 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Estadísticas:** cada gráfico se descarga como PNG.
 - **Historial:** «Editar» (ventas y compras cerradas) y «Compartir» (comprobante de venta) en cada fila.
 - **Fuera de este lote, a propósito:** nota de crédito sin venta de origen, compras abiertas y nota de crédito de proveedor, porque tocan el modelo de dinero, cuenta corriente y stock (requieren consulta, según CLAUDE.md).
+
+## D-032 · Envío de comprobantes por mail desde la casilla del comercio (OAuth)
+- **Estado:** Aceptada para la etapa 1 (migración 0021, aditiva: `correo_conexion`, `correo_envios`). Elegida por el dueño entre servicio propio, SMTP por comercio y OAuth.
+- **Qué hace:** cada comercio conecta su Gmail u Outlook en Ajustes → Correo; los comprobantes de venta y de compra se envían desde esa casilla, con respuesta al mail de la empresa. Sin dependencias nuevas: llamadas directas a la API de Gmail y a Microsoft Graph.
+- **Seguridad:** solo permiso de enviar; token de renovación cifrado y atado al comercio; estado del flujo firmado y atado a persona y navegador; envíos auditados en un registro de solo agregar; tope de 60 por hora.
+- **Requisito de puesta en marcha:** registrar la app en Google y/o Microsoft (ver `docs/CORREO.md`). Para Gmail con otros comercios, Google exige verificar la app (permiso sensible); hasta entonces solo funciona con cuentas de prueba y el permiso vence a los 7 días.
+- **Límite:** el comprobante va en el cuerpo del mail, sin PDF adjunto (haría falta una dependencia de generación de PDF; se consulta antes).
+- **Sin conexión:** el botón sigue abriendo el programa de mail de la persona con el texto escrito.

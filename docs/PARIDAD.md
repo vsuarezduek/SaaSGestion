@@ -60,7 +60,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
 | Nota de crédito y devolución | 🟡 | D-018. Desde la venta, con devolución a caja o cuenta corriente. Falta nota sin venta de origen y comprobante electrónico |
-| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Falta el envío automático con el PDF adjunto |
+| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Con la casilla conectada (Ajustes → Correo, D-032) el envío es automático, con el detalle en el cuerpo del mail; falta el PDF adjunto |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
 ## Compras
