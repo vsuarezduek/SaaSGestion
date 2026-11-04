@@ -16,14 +16,29 @@ export default function FormEmpresa({ inicial, tieneLogo }: { inicial: DatosForm
     <label style={etiqueta}>{titulo}<input style={campo} value={d[k]} maxLength={max} onChange={(e) => setD({ ...d, [k]: e.target.value })} /></label>
   );
   const guardar = () => iniciar(async () => { setMsg(null); setOk(false); const r = await guardarEmpresaAccion(d); if (r.error) setMsg(r.error); else { setOk(true); router.refresh(); } });
-  const subir = (f: FormData) => iniciar(async () => { setMsg(null); const r = await subirLogoAccion(f); if (r.error) setMsg(r.error); else router.refresh(); });
+  const subir = (f: FormData) => {
+    const archivo = f.get('logo');
+    if (!(archivo instanceof File) || archivo.size === 0) { setMsg('Elegí una imagen'); return; }
+    // Se controla acá porque, pasado 1 MB, el servidor corta la subida con un error genérico antes de poder avisar.
+    if (archivo.size > 300_000) { setMsg(`El logo pesa ${Math.round(archivo.size / 1000)} KB; el máximo es 300 KB. Probá achicarlo o exportarlo con menos resolución.`); return; }
+    if (archivo.type !== 'image/png' && archivo.type !== 'image/jpeg') { setMsg('El logo tiene que ser una imagen PNG o JPG'); return; }
+    iniciar(async () => {
+      setMsg(null);
+      try {
+        const r = await subirLogoAccion(f);
+        if (r.error) setMsg(r.error); else router.refresh();
+      } catch {
+        setMsg('No se pudo subir el logo. Probá con una imagen PNG o JPG más chica.');
+      }
+    });
+  };
   const quitar = () => iniciar(async () => { setMsg(null); const r = await quitarLogoAccion(); if (r.error) setMsg(r.error); else router.refresh(); });
   return (
     <>
       {msg && <div style={estiloError}>{msg}</div>}
       <div style={tarjeta}>
         <b>Logo</b>
-        <div style={{ margin: '8px 0' }}>{tieneLogo ? <img src={`/empresa/logo?${Date.now()}`} alt="Logo" style={{ maxHeight: 90, maxWidth: '100%' }} /> : <span style={{ color: '#5c6d66' }}>Sin logo</span>}</div>
+        <div style={{ margin: '8px 0' }}>{tieneLogo ? <img suppressHydrationWarning src={`/empresa/logo?${Date.now()}`} alt="Logo" style={{ maxHeight: 90, maxWidth: '100%' }} /> : <span style={{ color: '#5c6d66' }}>Sin logo</span>}</div>
         <form action={subir} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="file" name="logo" accept="image/png,image/jpeg" />
           <button style={botonSecundario} disabled={pend}>Subir (PNG o JPG, hasta 300 KB)</button>
