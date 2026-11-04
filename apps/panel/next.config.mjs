@@ -2,7 +2,8 @@
 const config = {
   poweredByHeader: false,
   // Permite importar el paquete compartido packages/seguridad (fuera de apps/panel).
-  experimental: { externalDir: true },
+  // El logo puede pesar hasta 1 MB; la subida lleva un poco más (formulario), así que el tope de las acciones se sube a 2 MB.
+  experimental: { externalDir: true, serverActions: { bodySizeLimit: '2mb' } },
   async headers() {
     return [
       {

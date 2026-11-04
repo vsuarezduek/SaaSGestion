@@ -19,8 +19,8 @@ export default function FormEmpresa({ inicial, tieneLogo }: { inicial: DatosForm
   const subir = (f: FormData) => {
     const archivo = f.get('logo');
     if (!(archivo instanceof File) || archivo.size === 0) { setMsg('Elegí una imagen'); return; }
-    // Se controla acá porque, pasado 1 MB, el servidor corta la subida con un error genérico antes de poder avisar.
-    if (archivo.size > 300_000) { setMsg(`El logo pesa ${Math.round(archivo.size / 1000)} KB; el máximo es 300 KB. Probá achicarlo o exportarlo con menos resolución.`); return; }
+    // Se controla acá porque, pasado el límite de subida, el servidor corta la subida con un error genérico antes de poder avisar.
+    if (archivo.size > 1_000_000) { setMsg(`El logo pesa ${Math.round(archivo.size / 1000)} KB; el máximo es 1 MB. Probá achicarlo o exportarlo con menos resolución.`); return; }
     if (archivo.type !== 'image/png' && archivo.type !== 'image/jpeg') { setMsg('El logo tiene que ser una imagen PNG o JPG'); return; }
     iniciar(async () => {
       setMsg(null);
@@ -41,7 +41,7 @@ export default function FormEmpresa({ inicial, tieneLogo }: { inicial: DatosForm
         <div style={{ margin: '8px 0' }}>{tieneLogo ? <img suppressHydrationWarning src={`/empresa/logo?${Date.now()}`} alt="Logo" style={{ maxHeight: 90, maxWidth: '100%' }} /> : <span style={{ color: '#5c6d66' }}>Sin logo</span>}</div>
         <form action={subir} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="file" name="logo" accept="image/png,image/jpeg" />
-          <button style={botonSecundario} disabled={pend}>Subir (PNG o JPG, hasta 300 KB)</button>
+          <button style={botonSecundario} disabled={pend}>Subir (PNG o JPG, hasta 1 MB)</button>
           {tieneLogo && <button type="button" style={botonSecundario} disabled={pend} onClick={quitar}>Quitar</button>}
         </form>
       </div>

@@ -1,10 +1,10 @@
-// Datos de la empresa y marca visual (logo y color). El logo vive en la base: PNG o JPEG de hasta 300 KB, verificado por su contenido.
+// Datos de la empresa y marca visual (logo y color). El logo vive en la base: PNG o JPEG de hasta 1 MB, verificado por su contenido.
 import { auditar, ErrorDeUsuario, type SesionActiva } from './auth.ts';
 import { conTenant } from './db.ts';
 import { exigir } from './permisos.ts';
 import { esquemaEmpresa, primerError } from './validacion.ts';
 
-export const MAX_LOGO_BYTES = 300_000;
+export const MAX_LOGO_BYTES = 1_000_000;
 export const COLOR_POR_DEFECTO = '#1c9764';
 
 export interface Empresa {
@@ -52,7 +52,7 @@ export function tipoDeImagen(b: Uint8Array): 'image/png' | 'image/jpeg' | null {
 export async function guardarLogo(s: SesionActiva, bytes: Uint8Array): Promise<void> {
   exigir(s, 'ajustes');
   if (bytes.length === 0) throw new ErrorDeUsuario('Elegí una imagen');
-  if (bytes.length > MAX_LOGO_BYTES) throw new ErrorDeUsuario('El logo pesa demasiado (máximo 300 KB)');
+  if (bytes.length > MAX_LOGO_BYTES) throw new ErrorDeUsuario('El logo pesa demasiado (máximo 1 MB)');
   const tipo = tipoDeImagen(bytes);
   if (!tipo) throw new ErrorDeUsuario('El logo tiene que ser una imagen PNG o JPG');
   await conTenant(s.tenantId, async (c) => {
