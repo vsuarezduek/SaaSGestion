@@ -644,7 +644,7 @@ DO $$ BEGIN
   EXCEPTION WHEN check_violation THEN NULL; END;
   BEGIN UPDATE empresa SET logo = '\x3c737667'::bytea, logo_tipo = 'image/svg+xml'; RAISE EXCEPTION 'permitió un logo SVG';
   EXCEPTION WHEN check_violation THEN NULL; END;
-  BEGIN UPDATE empresa SET logo = decode(repeat('ab', 300001), 'hex'), logo_tipo = 'image/png'; RAISE EXCEPTION 'permitió un logo demasiado grande';
+  BEGIN UPDATE empresa SET logo = decode(repeat('ab', 1000001), 'hex'), logo_tipo = 'image/png'; RAISE EXCEPTION 'permitió un logo demasiado grande';
   EXCEPTION WHEN check_violation THEN NULL; END;
   UPDATE empresa SET logo = '\x89504e47'::bytea, logo_tipo = 'image/png';
 END $$;
