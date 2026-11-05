@@ -32,7 +32,7 @@ export async function resumenDeHoy(s: SesionActiva): Promise<ResumenDeHoy> {
 const ENTIDADES: Record<string, [string, string | null]> = {
   correo_conexion: ['la casilla de correo', '/ajustes/correo'],
   venta: ['una venta', '/ventas'], compra: ['una compra', '/compras'], producto: ['un producto', '/productos'], cliente: ['un cliente', '/clientes'],
-  proveedor: ['un proveedor', '/proveedores'], caja: ['una caja', '/cajas'], recibo: ['un recibo', '/recibos'], orden_pago: ['una orden de pago', '/ordenes-pago'],
+  proveedor: ['un proveedor', '/proveedores'], caja: ['una caja', '/cajas'], recibo: ['un recibo', '/recibos'], orden_pago: ['una orden de pago', '/ordenes-pago'], nota_credito_compra: ['una nota de crédito de proveedor', '/compras/nota-de-credito'],
   rubro: ['un rubro', '/ajustes/rubros'], nota_credito: ['una nota de crédito', '/ventas'], elaboracion: ['una elaboración', null], receta: ['una receta', null],
   costos_fijos: ['los costos fijos', '/ajustes/costos-fijos'], medio_pago: ['un medio de pago', null], venta_abierta: ['una venta abierta', '/ventas'], compra_abierta: ['una compra abierta', '/compras'],
   dato_extra: ['un dato extra', null], categoria_cliente: ['una categoría de clientes', null], categoria_compra: ['una categoría de compras', null],

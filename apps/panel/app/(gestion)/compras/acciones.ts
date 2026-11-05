@@ -6,6 +6,7 @@ import {
   type Faltante, type ProductoParaCompra, type ProveedorParaCompra,
 } from '../../../lib/compras.ts';
 import { ConflictoDeVersionCompra, descartarCompraAbierta, guardarCompraAbierta } from '../../../lib/comprasAbiertas.ts';
+import { anularNotaCreditoCompra, emitirNotaCreditoCompra } from '../../../lib/notasCreditoCompra.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 
@@ -79,5 +80,30 @@ export async function descartarCompraAbiertaAccion(id: string): Promise<{ error?
     throw e;
   }
   revalidatePath('/compras', 'layout');
+  return {};
+}
+
+export async function emitirNotaCreditoCompraAccion(datos: unknown): Promise<{ error?: string; id?: string }> {
+  const s = await sesionObligatoria();
+  let id: string;
+  try {
+    id = (await emitirNotaCreditoCompra(s, datos)).id;
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  for (const p of ['/compras', '/productos', '/proveedores']) revalidatePath(p, 'layout');
+  return { id };
+}
+
+export async function anularNotaCreditoCompraAccion(id: string, motivo: string): Promise<{ error?: string }> {
+  const s = await sesionObligatoria();
+  try {
+    await anularNotaCreditoCompra(s, id, motivo);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  for (const p of ['/compras', '/productos', '/proveedores']) revalidatePath(p, 'layout');
   return {};
 }

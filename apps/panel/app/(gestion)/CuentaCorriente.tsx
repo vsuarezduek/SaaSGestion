@@ -9,10 +9,10 @@ import { registrarOrdenPagoAccion } from './ordenes-pago/acciones.ts';
 
 export interface Fila {
   id: string; fecha: string; tipo: string; importe: string; importeCrudo: string; concepto: string; revertido: boolean; usuario: string;
-  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null; compraId: string | null; ordenPagoId: string | null;
+  saldo: string; ventaId: string | null; reciboId: string | null; devolucionId: string | null; compraId: string | null; ordenPagoId: string | null; notaCreditoCompraId?: string | null;
 }
 export interface MedioCobro { id: string; nombre: string; cajas: { id: string; nombre: string }[] }
-const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo', nota_credito: 'Nota de crédito', devolucion_pago: 'Devolución de pago', compra: 'Compra', orden_pago: 'Orden de pago' };
+const TIPOS: Record<string, string> = { saldo_inicial: 'Saldo inicial', ajuste: 'Ajuste', reversion: 'Reversión', venta: 'Venta', recibo: 'Recibo', nota_credito: 'Nota de crédito', devolucion_pago: 'Devolución de pago', compra: 'Compra', orden_pago: 'Orden de pago', nota_credito_compra: 'Nota de crédito de proveedor' };
 
 interface Props {
   tipo: 'cliente' | 'proveedor'; id: string; saldo: string; filas: Fila[]; puedeOperar: boolean;
@@ -212,6 +212,7 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
                       {m.ventaId && <Link href={`/ventas/${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver venta</Link>}
                       {m.ventaId && m.tipo === 'venta' && !m.revertido && puedeOperar && <Link href={`/ventas/nueva?editar=${m.ventaId}`} style={{ color: '#1c9764', marginRight: 8 }}>Editar</Link>}
                       {m.ventaId && !m.revertido && ['venta', 'nota_credito'].includes(m.tipo) && <Link href={`/comprobante/ventas/${m.ventaId}`} target="_blank" style={{ color: '#1c9764', marginRight: 8 }}>Comprobante / PDF</Link>}
+                      {m.notaCreditoCompraId && <Link href={`/compras/nota-de-credito/${m.notaCreditoCompraId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver nota de crédito</Link>}
                       {m.compraId && <Link href={`/compras/${m.compraId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver compra</Link>}
                       {m.compraId && m.tipo === 'compra' && !m.revertido && puedeOperar && <Link href={`/compras/nueva?editar=${m.compraId}`} style={{ color: '#1c9764', marginRight: 8 }}>Editar</Link>}
                       {m.ordenPagoId && <Link href={`/ordenes-pago/${m.ordenPagoId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver orden de pago</Link>}
@@ -219,7 +220,7 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
                       {m.devolucionId && <Link href={`/devoluciones/${m.devolucionId}`} style={{ color: '#1c9764', marginRight: 8 }}>Ver devolución</Link>}
                       {conRecibos && m.tipo === 'venta' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirRecibo(m)}>Agregar recibo de pago</button>)}
                       {conOrdenes && m.tipo === 'compra' && !m.revertido && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => abrirOrden(m)}>Agregar orden de pago</button>)}
-                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito', 'devolucion_pago', 'compra', 'orden_pago'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
+                      {puedeOperar && !m.revertido && !['reversion', 'venta', 'recibo', 'nota_credito', 'devolucion_pago', 'compra', 'orden_pago', 'nota_credito_compra'].includes(m.tipo) && (<button type="button" style={botonSecundario} disabled={pend} onClick={() => revertir(m.id)}>Revertir</button>)}
                     </td>
                   </tr>
                 ))}

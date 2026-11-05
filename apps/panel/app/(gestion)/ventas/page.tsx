@@ -21,6 +21,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontFamily: 'Georgia, serif' }}>Ventas</h1>
       <BuscadorNuevaVenta />
+      <p style={{ fontSize: 13 }}><Link href="/ventas/nota-de-credito/nueva" style={{ color: '#1b5f63', fontWeight: 600 }}>Nota de crédito sin venta de origen</Link></p>
       <ListaPedidos pedidos={pedidos} />
       {abiertas.length > 0 && (
         <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0' }}>

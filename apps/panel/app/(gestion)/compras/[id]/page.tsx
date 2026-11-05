@@ -64,6 +64,7 @@ export default async function Compra({ params }: { params: Promise<{ id: string 
       )}
       {conexion && (<div style={tarjeta}><b>Enviar por mail</b> <EnviarPorMail tipo="compra" id={c.id} destino={proveedor?.email ?? ''} cuenta={conexion.cuenta} /></div>)}
       {c.estado === 'cerrada' && <Link href={`/compras/nueva?editar=${c.id}`} style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Editar</Link>}
+      {c.estado === 'cerrada' && <Link href={`/compras/nota-de-credito/nueva?compra=${c.id}`} style={{ ...boton, textDecoration: 'none', marginRight: 8 }}>Devolver al proveedor</Link>}
       {c.estado === 'cerrada' && <AnularCompra id={c.id} numero={c.numero} />}
     </main>
   );

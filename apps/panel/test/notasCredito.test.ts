@@ -7,7 +7,7 @@ import { abrirCaja, cerrarCaja, guardarCaja, obtenerCaja } from '../lib/cajas.ts
 import { guardarProducto, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
 import { guardarCategoria, guardarCliente, movimientosDe, obtenerCliente, revertirMovimiento } from '../lib/personas.ts';
-import { anularVenta, buscarClientesParaVenta, cerrarVenta, datosParaNotaCredito, emitirNotaCredito, guardarMedioDePago, obtenerVenta } from '../lib/ventas.ts';
+import { anularVenta, buscarClientesParaVenta, cerrarVenta, datosParaNotaCredito, emitirNotaCredito, emitirNotaCreditoLibre, guardarMedioDePago, obtenerVenta } from '../lib/ventas.ts';
 
 const sufijo = Date.now().toString(36);
 let A: SesionActiva;
@@ -160,4 +160,50 @@ test('un renglón de otra venta o cantidades inválidas se rechazan; otro comerc
   await assert.rejects(nota(v1.id, 'no-es-un-numero', '1'), ErrorDeUsuario);
   assert.equal(await datosParaNotaCredito(B, v1.id), null);
   await assert.rejects(emitirNotaCredito(B, { clave: randomUUID(), ventaOrigenId: v1.id, fecha: '', nota: '', renglones: [{ renglonOrigenId: r2!.id, cantidad: '1' }], cobro: { tipo: 'cuenta_corriente' } }), ErrorDeUsuario);
+});
+
+// ───────── Nota de crédito libre (sin venta de origen) ─────────
+const libre = (over: Record<string, unknown> = {}) =>
+  emitirNotaCreditoLibre(A, { clave: randomUUID(), clienteId: consumidor, fecha: '', nota: '',
+    renglones: [{ productoId: cafe, descripcion: '', cantidad: '2', precio: '900', descuentoPct: 0, iva: 21 }],
+    cobro: { tipo: 'caja', medioPagoId: medioEfectivo, cajaId: efectivo }, ...over });
+
+test('libre: sin venta de origen devuelve stock y plata al precio que se indica, sin tope', async () => {
+  const cajaAntes = await saldoCaja(efectivo), stockAntes = await stock(cafe);
+  const n = await libre();
+  assert.equal(n.total, '1800.00');
+  assert.equal(await saldoCaja(efectivo), cajaAntes - 1800);
+  assert.equal(await stock(cafe), stockAntes + 2);
+  const det = await obtenerVenta(A, n.id);
+  assert.equal(det?.comprobante, 'nota_credito');
+  assert.equal(det?.origen, null);
+  assert.equal(det?.comision, '0.00');
+});
+
+test('libre: a cuenta corriente baja la deuda del cliente; sin cuenta habilitada no se puede', async () => {
+  const antes = await saldoCliente(conCuenta);
+  const n = await libre({ clienteId: conCuenta, cobro: { tipo: 'cuenta_corriente' } });
+  assert.equal(await saldoCliente(conCuenta), antes - Number(n.total));
+  await assert.rejects(libre({ cobro: { tipo: 'cuenta_corriente' } }), ErrorDeUsuario);   // consumidor final no tiene cuenta
+});
+
+test('libre: ítem libre no mueve stock, la clave no se repite y se puede anular como cualquier venta', async () => {
+  const stockAntes = await stock(cafe);
+  const clave = randomUUID();
+  const a = await libre({ clave, renglones: [{ productoId: null, descripcion: 'Diferencia de precio', cantidad: '1', precio: '300', descuentoPct: 0, iva: 21 }] });
+  const b = await libre({ clave });
+  assert.equal(b.repetida, true);
+  assert.equal(b.id, a.id);
+  assert.equal(await stock(cafe), stockAntes);
+  const cajaAntes = await saldoCaja(efectivo);
+  await anularVenta(A, a.id, 'Error de carga');
+  assert.equal(await saldoCaja(efectivo), cajaAntes + 300);
+});
+
+test('libre: validaciones y aislamiento entre comercios', async () => {
+  await assert.rejects(libre({ renglones: [] }), ErrorDeUsuario);
+  await assert.rejects(libre({ renglones: [{ productoId: null, descripcion: '', cantidad: '1', precio: '10', descuentoPct: 0, iva: 21 }] }), ErrorDeUsuario);
+  await assert.rejects(libre({ cobro: { tipo: 'caja', medioPagoId: medioTarjeta, cajaId: efectivo } }), ErrorDeUsuario);   // medio no habilitado en esa caja
+  await assert.rejects(emitirNotaCreditoLibre(B, { clave: randomUUID(), clienteId: consumidor, fecha: '', nota: '',
+    renglones: [{ productoId: null, descripcion: 'x', cantidad: '1', precio: '10', descuentoPct: 0, iva: 21 }], cobro: { tipo: 'cuenta_corriente' } }), ErrorDeUsuario);
 });
