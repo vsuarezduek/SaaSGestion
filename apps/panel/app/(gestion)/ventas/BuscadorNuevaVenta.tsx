@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
+import { boton, botonSecundario, campo, tarjeta } from '../../../lib/estilos.ts';
 import { buscarClientesAccion } from './acciones.ts';
 
 interface Cliente { id: string; nombre: string; saldo: string; esConsumidorFinal: boolean; cuentaCorriente: boolean }
