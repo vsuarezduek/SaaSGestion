@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Pestanas from '../Pestanas.tsx';
-import Pestanas from '../Pestanas.tsx';
 import { formatearCantidad, formatearPesos, aCentavos } from '../../../../../../packages/dominio/src/index.ts';
 import { listarRubros } from '../../../../lib/catalogo.ts';
 import { datosExtraConValores, proveedoresParaProducto } from '../../../../lib/extras.ts';
