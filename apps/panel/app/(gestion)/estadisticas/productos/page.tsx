@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import Pestanas from '../Pestanas.tsx';
+import Pestanas from '../Pestanas.tsx';
 import { formatearCantidad, formatearPesos, aCentavos } from '../../../../../../packages/dominio/src/index.ts';
 import { listarRubros } from '../../../../lib/catalogo.ts';
 import { datosExtraConValores, proveedoresParaProducto } from '../../../../lib/extras.ts';
@@ -17,8 +19,9 @@ export default async function InformeProductos({ searchParams }: { searchParams:
   const celda = { padding: '5px 8px', borderBottom: '1px solid #d3e6de', textAlign: 'left' as const, fontSize: 14 };
   return (
     <main style={{ ...pagina, maxWidth: 900 }}>
-      <p style={{ margin: 0 }}><Link href="/informes" style={{ color: '#1c9764' }}>← Informes</Link></p>
-      <h1 style={{ marginTop: 4 }}>Informe de productos</h1>
+      <h1 style={{ marginTop: 0 }}>Estadísticas</h1>
+      <Pestanas activa="productos" />
+      <h2 style={{ marginTop: 0 }}>Productos</h2>
       <form method="get" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
         <input name="q" placeholder="Buscar…" defaultValue={p.q ?? ''} style={{ ...campo, width: 160, marginTop: 0 }} />
         <select name="rubro" defaultValue={p.rubro ?? ''} style={{ ...campo, width: 'auto', marginTop: 0 }}><option value="">Todos los rubros</option>{rubros.filter((x) => x.activo).map((x) => <option key={x.id} value={x.id}>{x.ruta}</option>)}</select>
@@ -29,7 +32,7 @@ export default async function InformeProductos({ searchParams }: { searchParams:
         <select name="estado" defaultValue={p.estado ?? 'activos'} style={{ ...campo, width: 'auto', marginTop: 0 }}><option value="activos">Activos</option><option value="archivados">Archivados</option><option value="todos">Todos</option></select>
         <select name="alerta" defaultValue={p.alerta ?? ''} style={{ ...campo, width: 'auto', marginTop: 0 }}><option value="">Cualquier stock</option><option value="negativo">Stock negativo</option><option value="bajo_minimo">Bajo el mínimo</option></select>
         <button style={{ ...botonSecundario, padding: '9px 14px' }}>Ver</button>
-        <a href={`/informes/productos/csv?${consulta}`} style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar CSV</a>
+        <a href={`/estadisticas/productos/csv?${consulta}`} style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar CSV</a>
       </form>
       <p style={{ color: '#5c6d66', marginTop: 0 }}>{r.total} producto{r.total === 1 ? '' : 's'}{r.total > r.filas.length ? ` (se muestran los primeros ${r.filas.length}; afiná el filtro)` : ''}</p>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

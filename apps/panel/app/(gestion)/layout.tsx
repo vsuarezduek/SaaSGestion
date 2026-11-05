@@ -16,15 +16,13 @@ export default async function Gestion({ children }: { children: ReactNode }) {
         {empresa.tieneLogo && <img src="/empresa/logo" alt="" style={{ height: 28 }} />}
         <b style={{ fontFamily: 'Georgia, serif', color: empresa.color }}>{empresa.nombre}</b>
         <Link href="/panel" style={enlace}>Inicio</Link>
-        <Link href="/productos" style={enlace}>Productos</Link>
         <Link href="/ventas" style={enlace}>Ventas</Link>
         <Link href="/clientes" style={enlace}>Clientes</Link>
-        <Link href="/proveedores" style={enlace}>Proveedores</Link>
         <Link href="/compras" style={enlace}>Compras</Link>
+        <Link href="/proveedores" style={enlace}>Proveedores</Link>
         <Link href="/cajas" style={enlace}>Cajas</Link>
-        {puede({ rol: s.rol as Rol, permisos: s.permisos, activo: true, cajasVisibles: null }, 'informes') && <><Link href="/estadisticas" style={enlace}>Estadísticas</Link><Link href="/informes" style={enlace}>Informes</Link></>}
-        <Link href="/rubros" style={enlace}>Rubros</Link>
-        <Link href="/importar" style={enlace}>Importar</Link>
+        <Link href="/productos" style={enlace}>Productos</Link>
+        {puede({ rol: s.rol as Rol, permisos: s.permisos, activo: true, cajasVisibles: null }, 'informes') && <Link href="/estadisticas" style={enlace}>Estadísticas</Link>}
         <Link href="/ajustes" style={enlace}>Ajustes</Link>
       </nav>
       {children}

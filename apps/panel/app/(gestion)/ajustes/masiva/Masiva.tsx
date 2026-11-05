@@ -3,7 +3,7 @@ import { useState, useTransition } from 'react';
 import { formatearPesos, aCentavos } from '../../../../../../packages/dominio/src/index.ts';
 import type { EntradaMasiva, ResultadoMasiva } from '../../../../lib/masiva.ts';
 import { aviso, boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
-import { masivaAccion } from '../acciones.ts';
+import { masivaAccion } from '../../productos/acciones.ts';
 
 interface Props {
   listas: { id: string; nombre: string }[];

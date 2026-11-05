@@ -16,6 +16,39 @@ export interface ResultadoImportacion {
   total: number; creados: number; actualizados: number; omitidos: number; simulacion: boolean;
   errores: { fila: number; mensaje: string }[]; // fila = número de fila en el archivo (la 1 es el encabezado)
   erroresTotales: number;
+  /** Qué pasaría con cada fila (hasta MAX_DETALLE): se muestra en la vista previa antes de confirmar. */
+  detalle: DetalleFila[];
+}
+export interface DetalleFila { fila: number; nombre: string; accion: 'crear' | 'actualizar' | 'omitir'; cambios: string[] }
+export const MAX_DETALLE = 300;
+
+const ETIQUETAS_CAMPO: Record<string, string> = {
+  nombre: 'Nombre', telefono: 'Teléfono', email: 'Email', domicilio: 'Domicilio', localidad: 'Localidad', cuit: 'CUIT', condicion_iva: 'Condición IVA', contacto: 'Contacto',
+  categoria: 'Categoría', codigo: 'Código', tipo: 'Tipo', unidad: 'Unidad', costo: 'Costo', iva: 'IVA', stock_minimo: 'Stock mínimo', stock_ideal: 'Stock ideal',
+};
+const ES_NUMERO = /^-?\d+([.,]\d+)?$/;
+function mismoValor(a: unknown, b: unknown): boolean {
+  const x = a === null || a === undefined ? '' : String(a);
+  const y = b === null || b === undefined ? '' : String(b);
+  return ES_NUMERO.test(x) && ES_NUMERO.test(y) ? Number(x.replace(',', '.')) === Number(y.replace(',', '.')) : x === y;
+}
+/** «Teléfono: 261 → 262» para cada columna que de verdad cambia. Los vínculos (rubro, proveedor, categoría) solo avisan que cambian. */
+function describirCambios(antes: Record<string, unknown>, cambios: [string, unknown][]): string[] {
+  const salida: string[] = [];
+  for (const [col, val] of cambios) {
+    if (col === 'datos_extra') { salida.push('Datos extras: se completan'); continue; }
+    if (col === 'rubro_id' || col === 'proveedor_id' || col === 'categoria_id') {
+      if (!mismoValor(antes[col], val)) salida.push(`${col === 'rubro_id' ? 'Rubro' : col === 'proveedor_id' ? 'Proveedor' : 'Categoría'}: cambia`);
+      continue;
+    }
+    if (mismoValor(antes[col], val)) continue;
+    const previo = antes[col] === null || antes[col] === undefined || antes[col] === '' ? '(vacío)' : String(antes[col]);
+    salida.push(`${ETIQUETAS_CAMPO[col] ?? col}: ${previo} → ${val === null || val === '' ? '(vacío)' : String(val)}`);
+  }
+  return salida;
+}
+function anotarDetalle(res: ResultadoImportacion, d: DetalleFila): void {
+  if (res.detalle.length < MAX_DETALLE) res.detalle.push(d);
 }
 
 // ───────── CSV ─────────
@@ -156,7 +189,7 @@ async function importarPersonas(c: PoolClient, s: SesionActiva, tipo: 'clientes'
         `SELECT id FROM ${tablaSql} WHERE ${esCliente ? 'NOT es_consumidor_final AND ' : ''}((cuit IS NOT NULL AND cuit = $1) OR lower(nombre) = lower($2)) ORDER BY activo DESC LIMIT 1`,
         [d.cuit, d.nombre]);
       if (previo.rows[0]) {
-        if (!actualizar) { res.omitidos++; await c.query('RELEASE SAVEPOINT fila'); continue; }
+        if (!actualizar) { res.omitidos++; anotarDetalle(res, { fila: f.n, nombre: String(d.nombre), accion: 'omitir', cambios: ['Ya existe'] }); await c.query('RELEASE SAVEPOINT fila'); continue; }
         // Se actualiza solo lo que el archivo trae con dato: una celda vacía no borra lo que ya estaba cargado.
         const cambios: [string, unknown][] = [];
         const poner = (col: string, clave: string, valor: unknown) => { if (tiene(t, clave) && celda(t, f, clave) !== '') cambios.push([col, valor]); };
@@ -164,6 +197,8 @@ async function importarPersonas(c: PoolClient, s: SesionActiva, tipo: 'clientes'
         poner('localidad', 'localidad', d.localidad); poner('cuit', 'cuit', d.cuit); poner('condicion_iva', 'condicioniva', d.condicionIva);
         if (esCliente) poner('categoria_id', 'categoria', (d as unknown as { categoriaId: string | null }).categoriaId);
         else { poner('contacto', 'contacto', d.contacto); poner('categoria', 'categoria', d.categoria); }
+        const antesFila = (await c.query(`SELECT * FROM ${tablaSql} WHERE id = $1`, [previo.rows[0].id])).rows[0] ?? {};
+        anotarDetalle(res, { fila: f.n, nombre: String(d.nombre), accion: 'actualizar', cambios: describirCambios(antesFila, cambios) });
         if (cambios.length) {
           await c.query(`UPDATE ${tablaSql} SET ${cambios.map(([col], i) => `${col} = $${i + 2}`).join(', ')} WHERE id = $1`, [previo.rows[0].id, ...cambios.map(([, val]) => val)]);
           await auditar(c, s.usuarioId, 'modificar', esCliente ? 'cliente' : 'proveedor', { importado: true, ...Object.fromEntries(cambios) }, { entidadId: previo.rows[0].id });
@@ -180,6 +215,7 @@ async function importarPersonas(c: PoolClient, s: SesionActiva, tipo: 'clientes'
           valores);
         const id = r.rows[0]!.id;
         await auditar(c, s.usuarioId, 'crear', esCliente ? 'cliente' : 'proveedor', { importado: true, ...d }, { entidadId: id });
+        anotarDetalle(res, { fila: f.n, nombre: String(d.nombre), accion: 'crear', cambios: [...(d.cuit ? [`CUIT ${d.cuit}`] : []), ...(d.telefono ? [`Tel. ${d.telefono}`] : []), ...(saldo && Number(saldo) !== 0 ? [`Saldo inicial ${saldo}`] : [])] });
         if (saldo && Number(saldo) !== 0) {
           await c.query(
             `INSERT INTO cuenta_corriente_movimientos (tenant_id, ${esCliente ? 'cliente_id' : 'proveedor_id'}, tipo, importe, concepto, usuario_id)
@@ -202,6 +238,7 @@ function anotarError(res: ResultadoImportacion, fila: number, e: unknown): void 
     : codigo === '23514' ? 'Algún dato no cumple las reglas (largo o formato)'
     : null;
   if (mensaje === null) throw e; // un error inesperado no se esconde
+  res.detalle = res.detalle.filter((d) => d.fila !== fila); // la fila falló: no figura como cambio
   res.erroresTotales++;
   if (res.errores.length < 100) res.errores.push({ fila, mensaje });
 }
@@ -302,7 +339,7 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         [d.codigo, d.nombre]);
       let id: string;
       if (previo.rows[0]) {
-        if (!actualizar) { res.omitidos++; await c.query('RELEASE SAVEPOINT fila'); continue; }
+        if (!actualizar) { res.omitidos++; anotarDetalle(res, { fila: f.n, nombre: d.nombre, accion: 'omitir', cambios: ['Ya existe'] }); await c.query('RELEASE SAVEPOINT fila'); continue; }
         id = previo.rows[0].id;
         // Solo se actualiza lo que el archivo trae con dato: una celda vacía no borra lo que ya estaba cargado.
         const cambios: [string, unknown][] = [];
@@ -312,6 +349,13 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         if (rubroId) cambios.push(['rubro_id', rubroId]);
         if (proveedorId) cambios.push(['proveedor_id', proveedorId]);
         if (Object.keys(extras).length) cambios.push(['datos_extra', JSON.stringify(extras)]);
+        const antesProd = (await c.query('SELECT * FROM productos WHERE id = $1', [id])).rows[0] ?? {};
+        const textoCambios = describirCambios(antesProd, cambios);
+        const preciosPrevios = new Map((await c.query<{ lista_id: string; precio: string }>('SELECT lista_id, precio::text FROM producto_precios WHERE producto_id = $1', [id])).rows.map((x) => [x.lista_id, x.precio]));
+        for (const [listaId, precio] of Object.entries(precios)) {
+          if (!mismoValor(preciosPrevios.get(listaId), precio)) textoCambios.push(`Precio ${listas.find((l) => l.id === listaId)?.nombre ?? ''}: ${preciosPrevios.get(listaId) ?? '(sin precio)'} → ${precio}`);
+        }
+        anotarDetalle(res, { fila: f.n, nombre: d.nombre, accion: 'actualizar', cambios: textoCambios });
         if (cambios.length) await c.query(`UPDATE productos SET ${cambios.map(([col], i) => (col === 'datos_extra' ? `datos_extra = datos_extra || $${i + 2}::jsonb` : `${col} = $${i + 2}`)).join(', ')} WHERE id = $1`, [id, ...cambios.map(([, val]) => val)]);
         await auditar(c, s.usuarioId, 'modificar', 'producto', { importado: true, ...Object.fromEntries(cambios), precios }, { entidadId: id });
         res.actualizados++;
@@ -322,6 +366,7 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
           [d.codigo, d.nombre, d.rubroId, d.tipo, d.unidad, d.costo, d.iva, d.vendible, d.comprable, d.integrable, d.publicadoWeb, d.urlWeb, d.stockMinimo, d.stockIdeal, proveedorId ?? null, JSON.stringify(extras)]);
         id = r.rows[0]!.id;
         await auditar(c, s.usuarioId, 'crear', 'producto', { importado: true, ...d }, { entidadId: id });
+        anotarDetalle(res, { fila: f.n, nombre: d.nombre, accion: 'crear', cambios: [...(d.costo && d.costo !== '0' ? [`Costo ${d.costo}`] : []), ...Object.entries(precios).map(([lid, pr]) => `Precio ${listas.find((l) => l.id === lid)?.nombre ?? ''} ${pr}`), ...(stockInicial && Number(stockInicial) !== 0 ? [`Stock inicial ${stockInicial}`] : [])] });
         if (stockInicial && Number(stockInicial) !== 0) {
           await c.query(
             `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, usuario_id)
@@ -348,7 +393,7 @@ export async function importarLista(s: SesionActiva, tipo: TipoImportacion, text
   exigir(s, tipo);
   const t = tabla(String(texto ?? ''), tipo);
   if (!tiene(t, 'nombre')) throw new ErrorDeUsuario('No encuentro la columna del nombre: el encabezado tiene que tener una columna "Nombre"');
-  const res: ResultadoImportacion = { total: t.filas.length, creados: 0, actualizados: 0, omitidos: 0, simulacion: opciones.simular, errores: [], erroresTotales: 0 };
+  const res: ResultadoImportacion = { total: t.filas.length, creados: 0, actualizados: 0, omitidos: 0, simulacion: opciones.simular, errores: [], erroresTotales: 0, detalle: [] };
   try {
     return await conTenant(s.tenantId, async (c) => {
       if (tipo === 'productos') await importarProductos(c, s, t, opciones.actualizar, res);

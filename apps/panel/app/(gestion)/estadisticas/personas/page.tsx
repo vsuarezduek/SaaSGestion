@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { formatearPesos } from '../../../../../packages/dominio/src/index.ts';
-import { ErrorDeUsuario } from '../../../lib/auth.ts';
-import { botonSecundario, campo, error, pagina } from '../../../lib/estilos.ts';
-import { periodoDe } from '../../../lib/estadisticas.ts';
-import { informeDePersonas, type FilaInforme, type TipoPersona } from '../../../lib/informes.ts';
-import { sesionActual } from '../../../lib/sesion.ts';
+import { formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
+import { ErrorDeUsuario } from '../../../../lib/auth.ts';
+import { botonSecundario, campo, error, pagina } from '../../../../lib/estilos.ts';
+import { periodoDe } from '../../../../lib/estadisticas.ts';
+import { informeDePersonas, type FilaInforme, type TipoPersona } from '../../../../lib/informes.ts';
+import { sesionActual } from '../../../../lib/sesion.ts';
+import Pestanas from '../Pestanas.tsx';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
@@ -28,15 +29,14 @@ export default async function Informes({ searchParams }: { searchParams: Promise
     problema = e.message;
   }
   const params = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]);
-  const enlace = (extra: Record<string, string>) => `/informes?${new URLSearchParams({ ...Object.fromEntries(params), ...extra })}`;
+  const enlace = (extra: Record<string, string>) => `/estadisticas/personas?${new URLSearchParams({ ...Object.fromEntries(params), ...extra })}`;
   const plural = tipo === 'cliente' ? 'Clientes' : 'Proveedores';
   return (
     <main style={{ ...pagina, maxWidth: 820 }}>
-      <h1 style={{ marginTop: 0 }}>Informes de {plural.toLowerCase()}</h1>
+      <h1 style={{ marginTop: 0 }}>Estadísticas</h1>
+      <Pestanas activa={tipo} />
+      <h2 style={{ marginTop: 0 }}>{plural}</h2>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        {(['cliente', 'proveedor'] as const).map((t) => <Link key={t} href={enlace({ tipo: t })} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...(tipo === t ? { background: '#1c9764', color: '#fff' } : {}) }}>{t === 'cliente' ? 'Clientes' : 'Proveedores'}</Link>)}
-        <Link href="/informes/productos" style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px' }}>Productos</Link>
-        <span style={{ width: 12 }} />
         {OPCIONES.map(([clave, texto]) => <Link key={clave} href={enlace({ p: clave, desde: '', hasta: '' })} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...((q.p ?? 'mes') === clave && !q.desde ? { background: '#1c9764', color: '#fff' } : {}) }}>{texto}</Link>)}
       </div>
       <form method="get" style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
@@ -45,7 +45,7 @@ export default async function Informes({ searchParams }: { searchParams: Promise
         <label style={{ fontSize: 12, color: '#5c6d66' }}>Hasta<input type="date" name="hasta" defaultValue={q.hasta} style={{ ...campo, width: 'auto' }} /></label>
         <label style={{ fontSize: 13 }}><input type="checkbox" name="deuda" value="1" defaultChecked={q.deuda === '1'} /> Solo con saldo pendiente</label>
         <button style={{ ...botonSecundario, padding: '9px 14px' }}>Ver</button>
-        <a href={`/informes/csv?${params}`} style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar CSV</a>
+        <a href={`/estadisticas/personas/csv?${params}`} style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar CSV</a>
       </form>
       {problema && <p style={error}>{problema}</p>}
       {nombre && <p style={{ color: '#5c6d66', marginTop: 0 }}>{nombre}</p>}

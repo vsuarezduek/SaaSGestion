@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { boton, botonSecundario, error as estiloError, etiqueta, aviso, tarjeta } from '../../../lib/estilos.ts';
-import type { ResultadoImportacion, TipoImportacion } from '../../../lib/importar.ts';
+import { boton, botonSecundario, error as estiloError, etiqueta, aviso, tarjeta } from '../../../../lib/estilos.ts';
+import type { ResultadoImportacion, TipoImportacion } from '../../../../lib/importar.ts';
 import { importarAccion } from './acciones.ts';
 
 const TITULOS: Record<TipoImportacion, string> = { clientes: 'Clientes', proveedores: 'Proveedores', productos: 'Productos' };
@@ -64,11 +64,10 @@ export default function Importador({ plantillas }: { plantillas: Record<TipoImpo
           <input type="file" accept=".csv,.txt,text/csv" onChange={(e) => leer(e.target.files?.[0])} style={{ display: 'block', marginTop: 6 }} />
         </label>
         <label style={{ fontSize: 14, display: 'block', margin: '8px 0' }}>
-          <input type="checkbox" checked={actualizar} onChange={(e) => setActualizar(e.target.checked)} /> Si ya existe (mismo {tipo === 'productos' ? 'código o nombre' : 'CUIT o nombre'}), actualizar sus datos. Si no, se omite.
+          <input type="checkbox" checked={actualizar} onChange={(e) => { setActualizar(e.target.checked); setRes(null); }} /> Si ya existe (mismo {tipo === 'productos' ? 'código o nombre' : 'CUIT o nombre'}), actualizar sus datos. Si no, se omite.
         </label>
         <p style={{ fontSize: 12, color: '#5c6d66' }}>Al actualizar solo se cambian las columnas que traen dato: una celda vacía no borra lo que ya estaba cargado. El saldo y el stock inicial solo se cargan en los registros nuevos.</p>
-        <button type="button" style={botonSecundario} disabled={!archivo || pend} onClick={() => correr(true)}>{pend ? 'Revisando…' : 'Revisar sin importar'}</button>{' '}
-        <button type="button" style={boton} disabled={!archivo || pend} onClick={() => correr(false)}>{pend ? 'Importando…' : 'Importar'}</button>
+        <button type="button" style={boton} disabled={!archivo || pend} onClick={() => correr(true)}>{pend && !res ? 'Revisando…' : 'Ver vista previa'}</button>
         {archivo && <span style={{ marginLeft: 10, fontSize: 13, color: '#5c6d66' }}>{archivo.nombre}</span>}
       </div>
       {res && (
@@ -77,14 +76,44 @@ export default function Importador({ plantillas }: { plantillas: Record<TipoImpo
             {res.simulacion ? 'Vista previa: todavía no se guardó nada. ' : 'Importación terminada. '}
             {res.total} filas · {res.creados} {res.simulacion ? 'se crearían' : 'creados'} · {res.actualizados} {res.simulacion ? 'se actualizarían' : 'actualizados'} · {res.omitidos} omitidos (ya existían) · {res.erroresTotales} con error
           </div>
+          {res.detalle.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr><th style={celda}>Fila</th><th style={celda}>{TITULOS[tipo].replace(/s$/, '')}</th><th style={celda}>Qué pasa</th><th style={celda}>Detalle</th></tr></thead>
+                <tbody>
+                  {res.detalle.map((d) => (
+                    <tr key={d.fila} style={{ opacity: d.accion === 'omitir' ? 0.55 : 1 }}>
+                      <td style={celda}>{d.fila}</td><td style={celda}>{d.nombre}</td>
+                      <td style={{ ...celda, fontWeight: 600, color: d.accion === 'crear' ? '#1c9764' : d.accion === 'actualizar' ? '#8a6d00' : '#5c6d66' }}>
+                        {d.accion === 'crear' ? (res.simulacion ? 'Se crea' : 'Creado') : d.accion === 'actualizar' ? (res.simulacion ? 'Se modifica' : 'Modificado') : 'Se omite'}
+                      </td>
+                      <td style={celda}>{d.cambios.length ? d.cambios.join(' · ') : d.accion === 'actualizar' ? 'Sin cambios' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {res.creados + res.actualizados + res.omitidos > res.detalle.length && <p style={{ fontSize: 13, color: '#5c6d66' }}>Se muestran las primeras {res.detalle.length} filas; el resto se procesa igual.</p>}
+            </div>
+          )}
           {res.errores.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr><th style={celda}>Fila</th><th style={celda}>Problema</th></tr></thead>
-              <tbody>{res.errores.map((e, i) => (<tr key={i}><td style={celda}>{e.fila}</td><td style={celda}>{e.mensaje}</td></tr>))}</tbody>
-            </table>
+            <>
+              <b style={{ fontSize: 14 }}>Filas con problemas (no se importan)</b>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr><th style={celda}>Fila</th><th style={celda}>Problema</th></tr></thead>
+                <tbody>{res.errores.map((e, i) => (<tr key={i}><td style={celda}>{e.fila}</td><td style={celda}>{e.mensaje}</td></tr>))}</tbody>
+              </table>
+            </>
           )}
           {res.erroresTotales > res.errores.length && <p style={{ fontSize: 13, color: '#5c6d66' }}>Se muestran los primeros {res.errores.length} errores de {res.erroresTotales}.</p>}
-          {res.simulacion && res.erroresTotales > 0 && <p style={{ fontSize: 13 }}>Las filas con error se saltan al importar; las demás se cargan igual. Podés corregir el archivo y volver a revisarlo.</p>}
+          {res.simulacion && (
+            <div style={{ marginTop: 12 }}>
+              {res.erroresTotales > 0 && <p style={{ fontSize: 13 }}>Las filas con error se saltan al importar; las demás se cargan igual. Podés corregir el archivo y volver a generar la vista previa.</p>}
+              {res.creados + res.actualizados === 0
+                ? <p style={{ fontSize: 14 }}>No hay nada para importar con estas opciones.</p>
+                : <button type="button" style={boton} disabled={pend} onClick={() => correr(false)}>{pend ? 'Importando…' : `Confirmar e importar (${res.creados} nuevos, ${res.actualizados} a modificar)`}</button>}{' '}
+              <button type="button" style={botonSecundario} disabled={pend} onClick={() => setRes(null)}>Cancelar</button>
+            </div>
+          )}
         </div>
       )}
     </>

@@ -220,7 +220,7 @@ export const esquemaVenta = z.object({
   clave: z.string().uuid(),
   abiertaId: z.string().uuid().nullable().default(null),   // si la venta salió de una venta abierta, esa se da por cerrada
   reemplazaVentaId: z.string().uuid().nullable().default(null), // si es la edición de una venta cerrada: esa se anula y esta la reemplaza
-  clienteId: z.string().uuid(),
+  clienteId: z.string().uuid('Elegí el cliente'),
   comprobante: z.enum(COMPROBANTES),
   nroComprobante: textoOpcional(30),
   listaId: z.string().uuid().nullable(),
@@ -242,7 +242,7 @@ export const esquemaVenta = z.object({
     .min(1, 'Agregá al menos un producto')
     .max(200, 'Demasiados renglones'),
   cobro: z.discriminatedUnion('tipo', [
-    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid(), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid('Elegí el medio de pago'), cajaId: z.string().uuid('Elegí la caja') }),
     z.object({ tipo: z.literal('cuenta_corriente') }),
   ]),
 });
@@ -259,7 +259,7 @@ export const esquemaNotaCredito = z.object({
     .min(1, 'Elegí al menos un producto a devolver')
     .max(200, 'Demasiados renglones'),
   cobro: z.discriminatedUnion('tipo', [
-    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid(), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid('Elegí el medio de pago'), cajaId: z.string().uuid('Elegí la caja') }),
     z.object({ tipo: z.literal('cuenta_corriente') }),
   ]),
 });
@@ -268,11 +268,11 @@ export type DatosNotaCredito = z.infer<typeof esquemaNotaCredito>;
 // ───────── Recibos de cuenta corriente ─────────
 export const esquemaRecibo = z.object({
   clave: z.string().uuid(),
-  clienteId: z.string().uuid(),
+  clienteId: z.string().uuid('Elegí el cliente'),
   ventaId: z.string().uuid().nullable(),
   importe: importePositivo('Importe'),
-  medioPagoId: z.string().uuid(),
-  cajaId: z.string().uuid(),
+  medioPagoId: z.string().uuid('Elegí el medio de pago'),
+  cajaId: z.string().uuid('Elegí la caja'),
   fecha: fechaArgentina,
   nota: textoOpcional(500),
 });
@@ -281,10 +281,10 @@ export type DatosRecibo = z.infer<typeof esquemaRecibo>;
 // ───────── Devolución de pago (saldo a favor del cliente) ─────────
 export const esquemaDevolucionPago = z.object({
   clave: z.string().uuid(),
-  clienteId: z.string().uuid(),
+  clienteId: z.string().uuid('Elegí el cliente'),
   importe: importePositivo('Importe'),
-  medioPagoId: z.string().uuid(),
-  cajaId: z.string().uuid(),
+  medioPagoId: z.string().uuid('Elegí el medio de pago'),
+  cajaId: z.string().uuid('Elegí la caja'),
   fecha: fechaArgentina,
   nota: textoOpcional(500),
 });
@@ -296,7 +296,7 @@ export const MODOS_COSTOS = ['ninguno', 'costo', 'costo_y_precio'] as const;
 export const esquemaCompra = z.object({
   clave: z.string().uuid(),
   reemplazaCompraId: z.string().uuid().nullable().default(null), // edición de una compra cerrada: esa se anula y esta la reemplaza
-  proveedorId: z.string().uuid(),
+  proveedorId: z.string().uuid('Elegí el proveedor'),
   categoria: z.string().trim().min(1, 'Elegí la categoría de la compra').max(60),
   comprobante: z.enum(COMPROBANTES_COMPRA),
   nroComprobante: textoOpcional(30),
@@ -318,7 +318,7 @@ export const esquemaCompra = z.object({
     .min(1, 'Agregá al menos un producto')
     .max(200, 'Demasiados renglones'),
   pago: z.discriminatedUnion('tipo', [
-    z.object({ tipo: z.literal('caja'), cajaId: z.string().uuid() }),
+    z.object({ tipo: z.literal('caja'), cajaId: z.string().uuid('Elegí la caja') }),
     z.object({ tipo: z.literal('cuenta_corriente') }),
   ]),
 });
@@ -326,10 +326,10 @@ export type DatosCompra = z.infer<typeof esquemaCompra>;
 
 export const esquemaOrdenPago = z.object({
   clave: z.string().uuid(),
-  proveedorId: z.string().uuid(),
+  proveedorId: z.string().uuid('Elegí el proveedor'),
   compraId: z.string().uuid().nullable(),
   importe: importePositivo('Importe'),
-  cajaId: z.string().uuid(),
+  cajaId: z.string().uuid('Elegí la caja'),
   fecha: fechaArgentina,
   nota: textoOpcional(500),
 });
@@ -338,7 +338,7 @@ export type DatosOrdenPago = z.infer<typeof esquemaOrdenPago>;
 // ───────── Ventas abiertas (borradores) ─────────
 const corto = (max: number) => z.string().max(max);
 export const esquemaBorrador = z.object({
-  clienteId: z.string().uuid(),
+  clienteId: z.string().uuid('Elegí el cliente'),
   comprobante: corto(30),
   nroComprobante: corto(30),
   listaId: z.string().uuid().nullable(),

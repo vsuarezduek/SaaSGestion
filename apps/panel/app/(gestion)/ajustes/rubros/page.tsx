@@ -1,6 +1,6 @@
-import { listarRubros } from '../../../lib/catalogo.ts';
-import { botonSecundario, campo, tarjeta } from '../../../lib/estilos.ts';
-import { sesionObligatoria } from '../../../lib/sesion.ts';
+import { listarRubros } from '../../../../lib/catalogo.ts';
+import { botonSecundario, campo, tarjeta } from '../../../../lib/estilos.ts';
+import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { archivarRubroAccion, renombrarRubroAccion } from './acciones.ts';
 import NuevoRubro from './NuevoRubro.tsx';
 

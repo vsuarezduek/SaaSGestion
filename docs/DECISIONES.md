@@ -214,3 +214,14 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Requisito de puesta en marcha:** registrar la app en Google y/o Microsoft (ver `docs/CORREO.md`). Para Gmail con otros comercios, Google exige verificar la app (permiso sensible); hasta entonces solo funciona con cuentas de prueba y el permiso vence a los 7 días.
 - **Límite:** el comprobante va en el cuerpo del mail, sin PDF adjunto (haría falta una dependencia de generación de PDF; se consulta antes).
 - **Sin conexión:** el botón sigue abriendo el programa de mail de la persona con el texto escrito.
+
+## D-033 · Reorganización: menú, Ajustes, Estadísticas unificada, importar con vista previa, eliminar producto
+- **Estado:** Aceptada para la etapa 1 (migración 0023, aditiva: permiso `DELETE` sobre `productos` y `producto_precios`). Pedido del dueño tras probar el sistema.
+- **Menú superior:** Inicio, Ventas, Clientes, Compras, Proveedores, Cajas, Productos, Estadísticas (con permiso de informes) y Ajustes. Nada más.
+- **Ajustes es el centro de configuración:** usuarios, empresa y marca, cajas, medios de pago, rubros, datos extras, costos fijos, modificación masiva de costos, importar y correo. Esas pantallas pasaron de `/rubros`, `/importar`, `/productos/extras`, `/productos/costos-fijos`, `/productos/masiva` y `/ventas/medios` a `/ajustes/…`. Productos conserva solo: nuevo, descargar listas de precios, exportar e importar (enlace a Ajustes).
+- **Estadísticas e Informes son una sola sección** con pestañas: Gráficos, Clientes, Proveedores y Productos (`/estadisticas`, `/estadisticas/personas`, `/estadisticas/productos`). Los permisos no cambian.
+- **Importar con vista previa:** siempre se genera primero una vista previa fila por fila (se crea / se modifica con «antes → después» / se omite, más las filas con error) y recién ahí se confirma. La vista previa se calcula en una transacción que se deshace: no guarda nada.
+- **Productos:** se sacó «Archivar»; «Se vende» y «Se compra» son casillas de la ficha. «Eliminar» borra solo un producto que nunca tuvo stock, ventas, compras, elaboraciones ni usos como ingrediente; con historia se rechaza con un mensaje (los libros siguen siendo de solo agregar y las claves foráneas lo impiden aunque la aplicación fallara). Queda auditado. Un producto ya archivado puede restaurarse.
+- **Ventas:** el buscador de ventas se reemplazó por un buscador de cliente con selector de comprobante (remito, factura A/B, sin comprobante) que abre la venta nueva ya cargada. Se quitó la fecha de entrega del formulario de venta.
+- **Cierre de venta:** si falta el medio de pago o la caja, se avisa en castellano (antes aparecía «Invalid uuid»). Lo mismo para cliente y proveedor en el resto de los formularios.
+- **Pendiente de revisar con el dueño:** los permisos de las pantallas movidas siguen siendo los de siempre (en el servidor); en Ajustes se muestran a quien tiene permiso de ajustes.

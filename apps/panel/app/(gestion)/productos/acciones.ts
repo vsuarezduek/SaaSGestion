@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { marcarParaPedir } from '../../../lib/aPedir.ts';
-import { archivarProducto, guardarProducto } from '../../../lib/catalogo.ts';
+import { archivarProducto, eliminarProducto, guardarProducto } from '../../../lib/catalogo.ts';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { registrarStock, revertirStock } from '../../../lib/stock.ts';
@@ -29,6 +29,18 @@ export async function guardarProductoAccion(id: string | null, datos: unknown): 
 export async function archivarProductoAccion(id: string, activo: boolean): Promise<void> {
   const s = await sesionObligatoria();
   await archivarProducto(s, id, activo);
+  redirect('/productos');
+}
+
+export async function eliminarProductoAccion(id: string): Promise<Resultado> {
+  const s = await sesionObligatoria();
+  try {
+    await eliminarProducto(s, id);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  revalidatePath('/productos', 'layout');
   redirect('/productos');
 }
 

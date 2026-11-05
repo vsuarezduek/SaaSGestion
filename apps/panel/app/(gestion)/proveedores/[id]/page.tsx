@@ -36,7 +36,7 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
             {prods.filas.map((f) => (<li key={f.id}><Link href={`/productos/${f.id}`}>{f.nombre}</Link></li>))}
           </ul>
         )}
-        <Link href={`/productos?proveedor=${p.id}`}>Ver en Productos</Link> · <Link href={`/productos/masiva`}>Modificar costos masivamente</Link>
+        <Link href={`/productos?proveedor=${p.id}`}>Ver en Productos</Link> · <Link href={`/ajustes/masiva`}>Modificar costos masivamente</Link>
       </details>
       <FormularioPersona
         tipo="proveedor" categoriasProveedor={cats}

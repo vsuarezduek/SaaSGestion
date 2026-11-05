@@ -33,14 +33,14 @@ const ENTIDADES: Record<string, [string, string | null]> = {
   correo_conexion: ['la casilla de correo', '/ajustes/correo'],
   venta: ['una venta', '/ventas'], compra: ['una compra', '/compras'], producto: ['un producto', '/productos'], cliente: ['un cliente', '/clientes'],
   proveedor: ['un proveedor', '/proveedores'], caja: ['una caja', '/cajas'], recibo: ['un recibo', '/recibos'], orden_pago: ['una orden de pago', '/ordenes-pago'],
-  rubro: ['un rubro', '/rubros'], nota_credito: ['una nota de crédito', '/ventas'], elaboracion: ['una elaboración', null], receta: ['una receta', null],
-  costos_fijos: ['los costos fijos', '/productos/costos-fijos'], medio_pago: ['un medio de pago', null], venta_abierta: ['una venta abierta', '/ventas'],
+  rubro: ['un rubro', '/ajustes/rubros'], nota_credito: ['una nota de crédito', '/ventas'], elaboracion: ['una elaboración', null], receta: ['una receta', null],
+  costos_fijos: ['los costos fijos', '/ajustes/costos-fijos'], medio_pago: ['un medio de pago', null], venta_abierta: ['una venta abierta', '/ventas'],
   dato_extra: ['un dato extra', null], categoria_cliente: ['una categoría de clientes', null], categoria_compra: ['una categoría de compras', null],
   devolucion_pago: ['una devolución de pago', '/devoluciones'], productos: ['varios productos', '/productos'],
   usuario: ['un usuario', '/ajustes/usuarios'], empresa: ['los datos de la empresa', '/ajustes/empresa'],
 };
 const VERBOS: Record<string, string> = {
-  crear: 'creó', modificar: 'modificó', anular: 'anuló', archivar: 'archivó', cerrar: 'cerró', abrir: 'abrió', registrar: 'registró', emitir: 'emitió',
+  crear: 'creó', modificar: 'modificó', anular: 'anuló', archivar: 'archivó', eliminar: 'eliminó', cerrar: 'cerró', abrir: 'abrió', registrar: 'registró', emitir: 'emitió',
   descartar: 'descartó', desactivar: 'desactivó', conectar: 'conectó', desconectar: 'desconectó', marcar_pedir: 'marcó para pedir', desmarcar_pedir: 'quitó de los pedidos', reactivar: 'reactivó', transferir: 'transfirió', revertir: 'revirtió', movimiento: 'registró un movimiento en',
 };
 
