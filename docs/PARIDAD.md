@@ -3,6 +3,8 @@
 Referencia: `prototipo/mistica.html` (versión 44 del artefacto, 29/10/2026). La meta de la Etapa 1 es que el sistema real haga **lo mismo que el prototipo** (ver `ESPECIFICACION.md`).
 Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 
+> **D-033:** menú reordenado, configuración en Ajustes, Estadísticas e Informes unificados, importar con vista previa y confirmación, eliminar producto.
+
 ## Reglas de trabajo
 - Cada entrega al sistema real se compara contra esta lista; al terminarla se marca lo hecho.
 - Cada cambio nuevo del artefacto se agrega acá (y a `CAMBIOS-PROTOTIPO.md`) con estado ⬜ y se decide cuándo pasarlo.

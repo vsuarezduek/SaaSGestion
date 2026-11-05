@@ -2,7 +2,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearComercio, ErrorDeUsuario, type SesionActiva } from '../lib/auth.ts';
-import { archivarProducto, archivarRubro, crearRubro, guardarProducto, listarProductos, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
+import { archivarProducto, archivarRubro, crearRubro, eliminarProducto, guardarProducto, listarProductos, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
 
 const sufijo = Date.now().toString(36);
@@ -95,4 +95,23 @@ test('rechaza IVA inválido, importes negativos y enlaces raros', async () => {
 test('no acepta una lista de precios de otro comercio', async () => {
   const listasB = await listasDePrecios(B);
   await assert.rejects(guardarProducto(A, null, { ...base, precios: { [listasB[0]!.id]: '10' } }), ErrorDeUsuario);
+});
+
+test('eliminar: borra un producto sin historia y bloquea el que ya tuvo movimientos', async () => {
+  const limpio = await guardarProducto(A, null, { ...base, nombre: `Limpio ${sufijo}`, precios: { [listasA[0]!.id]: '500' } });
+  await eliminarProducto(A, limpio);
+  assert.equal(await obtenerProducto(A, limpio), null);
+  const huellas = await conTenant(A.tenantId, (c) => c.query("SELECT 1 FROM auditoria WHERE accion = 'eliminar' AND entidad = 'producto' AND entidad_id = $1", [limpio]));
+  assert.equal(huellas.rowCount, 1);
+  const usado = await guardarProducto(A, null, { ...base, nombre: `Usado ${sufijo}` });
+  await conTenant(A.tenantId, (c) => c.query("INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto) VALUES (app.tenant_id(), $1, 'saldo_inicial', 5, 'inicial')", [usado]));
+  await assert.rejects(() => eliminarProducto(A, usado), ErrorDeUsuario);
+  assert.ok(await obtenerProducto(A, usado), 'el producto con historia sigue existiendo');
+  await assert.rejects(() => eliminarProducto(A, 'no-es-un-id'), ErrorDeUsuario);
+});
+
+test('eliminar: un comercio no puede borrar productos de otro', async () => {
+  const deA = await guardarProducto(A, null, { ...base, nombre: `Ajeno ${sufijo}` });
+  await assert.rejects(() => eliminarProducto(B, deA), ErrorDeUsuario);
+  assert.ok(await obtenerProducto(A, deA));
 });

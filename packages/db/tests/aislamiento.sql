@@ -682,4 +682,27 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM correo_conexion) <> 1 THEN RAISE EXCEPTION 'B desconectó la casilla de A'; END IF;
 END $$;
 
+-- 26) Eliminar producto: solo el que nunca se usó; con movimientos de stock las claves foráneas lo impiden; otro comercio no puede borrarlo.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$
+DECLARE libre uuid; usado uuid;
+BEGIN
+  INSERT INTO productos (tenant_id, nombre) VALUES (app.tenant_id(), 'Borrable') RETURNING id INTO libre;
+  INSERT INTO productos (tenant_id, nombre) VALUES (app.tenant_id(), 'Con historia') RETURNING id INTO usado;
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto) VALUES (app.tenant_id(), usado, 'saldo_inicial', 5, 'inicial');
+  BEGIN DELETE FROM productos WHERE id = usado; RAISE EXCEPTION 'permitió borrar un producto con movimientos de stock';
+  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+  PERFORM set_config('app.prueba_libre', libre::text, true);
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  DELETE FROM productos WHERE id = current_setting('app.prueba_libre')::uuid;
+END $$;
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM productos WHERE id = current_setting('app.prueba_libre')::uuid) <> 1 THEN RAISE EXCEPTION 'B borró un producto de A'; END IF;
+  DELETE FROM productos WHERE id = current_setting('app.prueba_libre')::uuid;
+  IF (SELECT count(*) FROM productos WHERE nombre = 'Borrable') <> 0 THEN RAISE EXCEPTION 'no se pudo borrar un producto sin historia'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

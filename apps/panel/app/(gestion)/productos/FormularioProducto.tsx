@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import { aCentavos, ALICUOTAS_IVA, deCentavos, normalizarImporte, precioDesdeUtilidad, utilidadDesdePrecio } from '../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../lib/estilos.ts';
-import { archivarProductoAccion, guardarProductoAccion } from './acciones.ts';
+import { archivarProductoAccion, eliminarProductoAccion, guardarProductoAccion } from './acciones.ts';
 
 export interface Inicial {
   id: string | null;
@@ -150,9 +150,16 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
         ) : (
           <button type="button" style={boton} onClick={() => setEditando(true)}>Editar</button>
         )}
+        {d.id && !editando && !d.activo && (
+          <button type="button" style={botonSecundario} disabled={pend} onClick={() => iniciar(() => archivarProductoAccion(d.id!, true))}>Restaurar</button>
+        )}
         {d.id && !editando && (
-          <button type="button" style={botonSecundario} disabled={pend} onClick={() => iniciar(() => archivarProductoAccion(d.id!, !d.activo))}>
-            {d.activo ? 'Archivar' : 'Restaurar'}
+          <button type="button" style={{ ...botonSecundario, color: '#b4571a' }} disabled={pend}
+            onClick={() => {
+              if (!window.confirm(`¿Eliminar «${d.nombre}»? No se puede deshacer.`)) return;
+              iniciar(async () => { setMsg(null); const r = await eliminarProductoAccion(d.id!); if (r?.error) setMsg(r.error); });
+            }}>
+            Eliminar
           </button>
         )}
       </div>

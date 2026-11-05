@@ -32,12 +32,9 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         <Link href="/productos/nuevo" style={{ ...boton, textDecoration: 'none' }}>+ Producto</Link>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        <Link href="/productos/masiva" style={{ ...botonSecundario, textDecoration: 'none' }}>Modificar costos masivamente</Link>
         <Link href="/comprobante/listas" style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar listas de precios</Link>
-        <Link href="/productos/costos-fijos" style={{ ...botonSecundario, textDecoration: 'none' }}>Costos fijos</Link>
-        <Link href="/productos/extras" style={{ ...botonSecundario, textDecoration: 'none' }}>Datos extras</Link>
         <a href="/productos/exportar" style={{ ...botonSecundario, textDecoration: 'none' }}>Exportar CSV</a>
-        <Link href="/importar" style={{ ...botonSecundario, textDecoration: 'none' }}>Importar</Link>
+        <Link href="/ajustes/importar" style={{ ...botonSecundario, textDecoration: 'none' }}>Importar</Link>
       </div>
       <form method="get" style={{ ...tarjeta, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input name="q" defaultValue={p.q ?? ''} placeholder="Buscar por nombre, código o tipo" style={{ ...campo, flex: '2 1 220px', marginTop: 0 }} />

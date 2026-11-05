@@ -24,7 +24,7 @@ export default function ListaDatosExtra({ datos }: { datos: { id: string; nombre
       {datos.length === 0 && <p style={{ color: '#5c6d66' }}>Todavía no hay datos extras.</p>}
       {datos.map((d) => (
         <div key={d.id} style={{ ...tarjeta, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <Link href={`/productos/extras/${d.id}`} style={{ flex: '1 1 220px', textDecoration: 'none', color: 'inherit' }}>
+          <Link href={`/ajustes/extras/${d.id}`} style={{ flex: '1 1 220px', textDecoration: 'none', color: 'inherit' }}>
             <b>{d.nombre}</b><br /><small style={{ color: '#5c6d66' }}>{d.productos} productos · {d.valores} valores · tocá para ver la lista</small>
           </Link>
           <button type="button" style={botonSecundario} disabled={pend} onClick={() => { const n = window.prompt('Nuevo nombre', d.nombre); if (n && n.trim() && n !== d.nombre) correr(() => renombrarDatoAccion(d.id, n)); }}>Renombrar</button>

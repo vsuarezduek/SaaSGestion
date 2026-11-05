@@ -1,10 +1,10 @@
-import { ErrorDeUsuario } from '../../../../lib/auth.ts';
-import { aCsv } from '../../../../lib/csv.ts';
-import { periodoDe } from '../../../../lib/estadisticas.ts';
-import { informeDePersonas } from '../../../../lib/informes.ts';
-import { ErrorDePermiso } from '../../../../lib/permisos.ts';
-import { sesionActual } from '../../../../lib/sesion.ts';
-import { deCentavos } from '../../../../../../packages/dominio/src/index.ts';
+import { ErrorDeUsuario } from '../../../../../lib/auth.ts';
+import { aCsv } from '../../../../../lib/csv.ts';
+import { periodoDe } from '../../../../../lib/estadisticas.ts';
+import { informeDePersonas } from '../../../../../lib/informes.ts';
+import { ErrorDePermiso } from '../../../../../lib/permisos.ts';
+import { sesionActual } from '../../../../../lib/sesion.ts';
+import { deCentavos } from '../../../../../../../packages/dominio/src/index.ts';
 
 export const dynamic = 'force-dynamic';
 

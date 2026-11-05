@@ -6,6 +6,7 @@ import { botonSecundario, campo, error, pagina, tarjeta } from '../../../lib/est
 import { estadisticasDe, periodoDe, type OrdenProductos } from '../../../lib/estadisticas.ts';
 import { sesionActual } from '../../../lib/sesion.ts';
 import BotonPng from './BotonPng.tsx';
+import Pestanas from './Pestanas.tsx';
 import Grafico, { valorTexto } from './Grafico.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,7 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   return (
     <main style={{ ...pagina, maxWidth: 760 }}>
       <h1 style={{ marginTop: 0 }}>Estadísticas</h1>
+      <Pestanas activa="graficos" />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {OPCIONES.map(([clave, texto]) => (
           <Link key={clave} href={`/estadisticas?p=${clave}`} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...((q.p ?? 'mes') === clave && !q.desde ? { background: '#1c9764', color: '#fff' } : {}) }}>{texto}</Link>

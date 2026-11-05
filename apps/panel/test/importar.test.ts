@@ -130,3 +130,30 @@ test('la plantilla trae encabezados que la propia importación entiende', async 
     assert.equal(r.erroresTotales, 0, `${tipo}: ${JSON.stringify(r.errores)}`);
   }
 });
+
+test('la vista previa detalla qué se crea, qué se modifica (antes → después) y qué se omite', async () => {
+  await importarLista(A, 'clientes', 'Nombre,Teléfono\nMarta Gil,111\nPedro Gil,222', opc);
+  const antes = await contar(A, 'clientes');
+  const r = await importarLista(A, 'clientes', 'Nombre,Teléfono\nMarta Gil,999\nPedro Gil,222\nElena Nueva,333', { actualizar: true, simular: true });
+  assert.equal(await contar(A, 'clientes'), antes, 'la vista previa no guarda nada');
+  const porNombre = new Map(r.detalle.map((d) => [d.nombre.toLowerCase(), d]));
+  assert.equal(porNombre.get('marta gil')!.accion, 'actualizar');
+  assert.deepEqual(porNombre.get('marta gil')!.cambios, ['Teléfono: 111 → 999']);
+  assert.deepEqual(porNombre.get('pedro gil')!.cambios, [], 'sin diferencias: no hay cambios que mostrar');
+  assert.equal(porNombre.get('elena nueva')!.accion, 'crear');
+  const sinActualizar = await importarLista(A, 'clientes', 'Nombre\nMarta Gil', { actualizar: false, simular: true });
+  assert.deepEqual(sinActualizar.detalle.map((d) => d.accion), ['omitir']);
+  const conError = await importarLista(A, 'productos', 'Nombre,IVA\nPan,99', { actualizar: false, simular: true });
+  assert.equal(conError.detalle.length, 0, 'una fila con error no figura como cambio');
+  assert.equal(conError.erroresTotales, 1);
+});
+
+test('la vista previa de productos muestra el precio anterior y el nuevo', async () => {
+  const lista = nombreLista;
+  await importarLista(A, 'productos', `Código,Nombre,Costo,${lista}\nP-77,Yerba,100,500`, opc);
+  const r = await importarLista(A, 'productos', `Código,Nombre,Costo,${lista}\nP-77,Yerba,120,650`, { actualizar: true, simular: true });
+  const d = r.detalle[0]!;
+  assert.equal(d.accion, 'actualizar');
+  assert.ok(d.cambios.some((c) => /^Costo: 100(\.00)? → 120(\.00)?$/.test(c)), d.cambios.join('|'));
+  assert.ok(d.cambios.some((c) => c.includes(`Precio ${lista}`) && c.includes('→ 650')), d.cambios.join('|'));
+});

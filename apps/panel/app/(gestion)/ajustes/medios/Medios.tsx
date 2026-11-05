@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 import { boton, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
-import { guardarMedioAccion } from '../acciones.ts';
+import { guardarMedioAccion } from '../../ventas/acciones.ts';
 
 interface Medio { id: string | null; nombre: string; comision: string; iva: number; cajaIds: string[] }
 

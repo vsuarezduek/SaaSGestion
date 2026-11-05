@@ -4,7 +4,7 @@ import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { listarMediosDePago } from '../../../../lib/ventas.ts';
 import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import NuevaCaja from '../../cajas/NuevaCaja.tsx';
-import Medios from '../../ventas/medios/Medios.tsx';
+import Medios from '../medios/Medios.tsx';
 import EditorCaja from './EditorCaja.tsx';
 
 export const dynamic = 'force-dynamic';

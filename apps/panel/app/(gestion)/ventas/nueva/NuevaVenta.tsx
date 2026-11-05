@@ -14,6 +14,8 @@ interface Props {
   medios: { id: string; nombre: string; comisionPct: number; ivaComision: number; cajaIds: string[] }[];
   cajas: { id: string; nombre: string }[];
   clienteInicial: Cliente;
+  /** Tipo de comprobante elegido desde el buscador de Ventas. */
+  comprobanteInicial?: string;
   /** Venta abierta que se está retomando (si la hay). */
   abierta?: { id: string; version: number; datos: Borrador } | null;
   /** Venta cerrada que se está corrigiendo: al cerrar, esa se anula y la nueva la reemplaza. */
@@ -24,14 +26,14 @@ const COMPROBANTES: [string, string][] = [['remito', 'Remito'], ['factura_b', 'F
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abierta, edicion }: Props) {
+export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comprobanteInicial, abierta, edicion }: Props) {
   const ini = abierta?.datos ?? edicion?.datos;
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma venta no se cierra dos veces
   const [cliente, setCliente] = useState<Cliente>(clienteInicial);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
-  const [comprobante, setComprobante] = useState(ini?.comprobante ?? 'remito');
+  const [comprobante, setComprobante] = useState(ini?.comprobante ?? comprobanteInicial ?? 'remito');
   const [nroComprobante, setNroComprobante] = useState(ini?.nroComprobante ?? '');
   const [listaId, setListaId] = useState(ini?.listaId ?? clienteInicial.listaId ?? listas[0]?.id ?? '');
   const [fecha, setFecha] = useState(ini?.fecha ?? '');
@@ -47,7 +49,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const [cajaId, setCajaId] = useState(ini?.cajaId ?? '');
   const [nota, setNota] = useState(ini?.nota ?? '');
   const [esPedido, setEsPedido] = useState(ini?.pedido ?? false);
-  const [entrega, setEntrega] = useState(ini?.entrega ?? '');
+  const [entrega] = useState(ini?.entrega ?? ''); // ya no se edita desde la venta; se conserva si venía de un pedido
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const refs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -192,6 +194,8 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
   const cerrar = () =>
     iniciar(async () => {
       setMsg(null);
+      if (cobroTipo === 'caja' && !medioId) { setMsg('Elegí el medio de pago'); return; }
+      if (cobroTipo === 'caja' && !cajaId) { setMsg(medio && cajasDelMedio.length === 0 ? 'No hay cajas abiertas para ese medio de pago. Abrí una caja o elegí otro medio.' : 'Elegí la caja donde entra el cobro'); return; }
       detenido.current = true;          // ya no se guarda como borrador: se está cerrando
       await cola.current;               // si había un guardado en curso, que termine antes
       const r = await cerrarVentaAccion({
@@ -329,9 +333,6 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, abie
             </>
           )}
         </div>
-        <label style={{ ...etiqueta, marginTop: 10, maxWidth: 260 }}>Fecha de entrega (solo si es un pedido)
-          <input type="date" style={campo} value={entrega} onChange={(e) => setEntrega(e.target.value)} />
-        </label>
         <div style={{ marginTop: 14 }}>
           <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok} onClick={cerrar}>{pend ? 'Guardando…' : edicion ? 'Guardar cambios' : 'Cerrar venta'}</button>{' '}
           {!edicion && <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>}{' '}

@@ -1,6 +1,6 @@
 'use client';
 import { useActionState } from 'react';
-import { boton, campo, error as estiloError, tarjeta } from '../../../lib/estilos.ts';
+import { boton, campo, error as estiloError, tarjeta } from '../../../../lib/estilos.ts';
 import { crearRubroAccion } from './acciones.ts';
 
 export default function NuevoRubro({ rubros }: { rubros: { id: string; ruta: string }[] }) {

@@ -87,6 +87,21 @@ export async function buscarClientesParaVenta(s: SesionActiva, q: string): Promi
   });
 }
 
+/** Un cliente puntual (para llegar a una venta nueva desde su ficha o desde el buscador de Ventas). null si no existe o no es de este comercio. */
+export async function clienteParaVenta(s: SesionActiva, id: string): Promise<ClienteParaVenta | null> {
+  exigir(s, 'ventas');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query(
+      `SELECT c.id, c.nombre, c.es_consumidor_final, k.lista_id, COALESCE(k.descuento, 0)::text AS descuento, COALESCE(k.cuenta_corriente, false) AS cc,
+              COALESCE((SELECT sum(m.importe) FROM cuenta_corriente_movimientos m WHERE m.cliente_id = c.id), 0)::numeric(14,2)::text AS saldo
+         FROM clientes c LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id
+        WHERE c.activo AND c.id = $1`, [id]);
+    const f = r.rows[0];
+    return f ? { id: f.id, nombre: f.nombre, saldo: f.saldo, listaId: f.lista_id, descuento: Number(f.descuento), cuentaCorriente: f.cc && !f.es_consumidor_final, esConsumidorFinal: f.es_consumidor_final } : null;
+  });
+}
+
 export interface ProductoParaVenta { id: string; nombre: string; codigo: string | null; unidad: string; precio: string; iva: number; stock: string }
 
 /** Productos vendibles con el precio de la lista elegida (también sirve para "Actualizar precios"). */

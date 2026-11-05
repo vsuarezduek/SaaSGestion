@@ -331,6 +331,34 @@ export async function guardarProducto(s: SesionActiva, id: string | null, entrad
 }
 
 /** Los productos no se borran: se archivan y conservan su historial (regla 15). */
+/**
+ * Elimina un producto que nunca se usó. Con historia (stock, ventas, compras, elaboraciones o usado como ingrediente) no se puede:
+ * los libros son de solo agregar. En ese caso se le destilda «Se vende» / «Se compra» para que no aparezca en operaciones nuevas.
+ */
+export async function eliminarProducto(s: SesionActiva, id: string): Promise<void> {
+  exigir(s, 'productos');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new ErrorDeUsuario('El producto no existe');
+  await conTenant(s.tenantId, async (c) => {
+    const antes = await detalleEn(c, id);
+    if (!antes) throw new ErrorDeUsuario('El producto no existe');
+    const uso = await c.query<{ n: string }>(
+      `SELECT (SELECT count(*) FROM stock_movimientos WHERE producto_id = $1)
+            + (SELECT count(*) FROM venta_renglones WHERE producto_id = $1)
+            + (SELECT count(*) FROM compra_renglones WHERE producto_id = $1)
+            + (SELECT count(*) FROM elaboraciones WHERE producto_id = $1)
+            + (SELECT count(*) FROM elaboracion_insumos WHERE ingrediente_id = $1)
+            + (SELECT count(*) FROM receta_ingredientes WHERE ingrediente_id = $1) AS n`, [id]);
+    if (Number(uso.rows[0]!.n) > 0) {
+      throw new ErrorDeUsuario('Este producto ya tiene movimientos (stock, ventas, compras o recetas) y no se puede eliminar para no alterar el historial. Destildá «Se vende» y «Se compra» y deja de aparecer en las operaciones nuevas.');
+    }
+    await c.query('DELETE FROM producto_precios WHERE producto_id = $1', [id]);
+    await c.query('DELETE FROM receta_ingredientes WHERE producto_id = $1', [id]);
+    await c.query('DELETE FROM costos_fijos_items WHERE producto_id = $1', [id]);
+    await c.query('DELETE FROM productos WHERE id = $1', [id]);
+    await auditar(c, s.usuarioId, 'eliminar', 'producto', undefined, { entidadId: id, antes: { nombre: antes.nombre, codigo: antes.codigo } });
+  });
+}
+
 export async function archivarProducto(s: SesionActiva, id: string, activo: boolean): Promise<void> {
   exigir(s, 'productos');
   await conTenant(s.tenantId, async (c) => {

@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { listarVentas } from '../../../lib/ventas.ts';
 import { ETIQUETAS_COMPROBANTE as ETIQUETAS } from '../../../lib/etiquetas.ts';
-import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
+import { boton, tarjeta } from '../../../lib/estilos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
+import BuscadorNuevaVenta from './BuscadorNuevaVenta.tsx';
 import ListaPedidos from './ListaPedidos.tsx';
 import { listarAbiertas, listarPedidos } from '../../../lib/ventasAbiertas.ts';
 import DescartarAbierta from './DescartarAbierta.tsx';
@@ -16,20 +17,10 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<{
   const [ventas, abiertas, pedidos] = await Promise.all([listarVentas(s, { q: p.q, limite: p.todas || p.q ? 100 : 10 }), listarAbiertas(s), listarPedidos(s)]);
   const hora = (d: Date) => d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const celda = { padding: '6px 8px', borderBottom: '1px solid #d3e6de', fontSize: 14, textAlign: 'left' as const };
-  const puedeConfigurar = s.rol === 'administrador' || s.permisos.includes('ajustes');
   return (
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <h1 style={{ fontFamily: 'Georgia, serif' }}>Ventas</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {puedeConfigurar && <Link href="/ventas/medios" style={{ color: '#1c9764' }}>Medios de pago</Link>}
-          <Link href="/ventas/nueva" style={{ ...boton, textDecoration: 'none' }}>+ Venta</Link>
-        </div>
-      </div>
-      <form method="get" style={{ ...tarjeta, display: 'flex', gap: 8 }}>
-        <input name="q" defaultValue={p.q ?? ''} placeholder="Buscar por cliente, número o comprobante" style={{ ...campo, marginTop: 0 }} />
-        <button type="submit" style={boton}>Buscar</button>
-      </form>
+      <h1 style={{ fontFamily: 'Georgia, serif' }}>Ventas</h1>
+      <BuscadorNuevaVenta />
       <ListaPedidos pedidos={pedidos} />
       {abiertas.length > 0 && (
         <div style={{ ...tarjeta, borderColor: '#f0c36b', background: '#fffaf0' }}>
