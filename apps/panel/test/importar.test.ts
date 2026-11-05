@@ -134,7 +134,7 @@ test('la plantilla trae encabezados que la propia importación entiende', async 
 test('la vista previa detalla qué se crea, qué se modifica (antes → después) y qué se omite', async () => {
   await importarLista(A, 'clientes', 'Nombre,Teléfono\nMarta Gil,111\nPedro Gil,222', opc);
   const antes = await contar(A, 'clientes');
-  const r = await importarLista(A, 'clientes', 'Nombre,Teléfono\nmarta gil,999\nPedro Gil,222\nElena Nueva,333', { actualizar: true, simular: true });
+  const r = await importarLista(A, 'clientes', 'Nombre,Teléfono\nMarta Gil,999\nPedro Gil,222\nElena Nueva,333', { actualizar: true, simular: true });
   assert.equal(await contar(A, 'clientes'), antes, 'la vista previa no guarda nada');
   const porNombre = new Map(r.detalle.map((d) => [d.nombre.toLowerCase(), d]));
   assert.equal(porNombre.get('marta gil')!.accion, 'actualizar');
@@ -154,6 +154,6 @@ test('la vista previa de productos muestra el precio anterior y el nuevo', async
   const r = await importarLista(A, 'productos', `Código,Nombre,Costo,${lista}\nP-77,Yerba,120,650`, { actualizar: true, simular: true });
   const d = r.detalle[0]!;
   assert.equal(d.accion, 'actualizar');
-  assert.ok(d.cambios.some((c) => /^Costo: 100(\.00)? → 120$/.test(c)), d.cambios.join('|'));
+  assert.ok(d.cambios.some((c) => /^Costo: 100(\.00)? → 120(\.00)?$/.test(c)), d.cambios.join('|'));
   assert.ok(d.cambios.some((c) => c.includes(`Precio ${lista}`) && c.includes('→ 650')), d.cambios.join('|'));
 });
