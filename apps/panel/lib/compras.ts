@@ -143,6 +143,12 @@ export async function cerrarCompra(s: SesionActiva, entrada: unknown): Promise<R
     const previa = await c.query<{ id: string; numero: number; total: string; impuesto: string }>('SELECT id, numero, total::text, impuesto::text FROM compras WHERE clave = $1', [d.clave]);
     if (previa.rows[0]) return { ...previa.rows[0], repetida: true };
 
+    if (d.abiertaId) {
+      const ab = await c.query<{ estado: string }>('SELECT estado FROM compras_abiertas WHERE id = $1 FOR UPDATE', [d.abiertaId]);
+      if (!ab.rows[0]) throw new ErrorDeUsuario('La compra abierta no existe');
+      if (ab.rows[0].estado !== 'abierta') throw new ErrorDeUsuario('Esa compra abierta ya fue cerrada o descartada por otra persona');
+    }
+
     const prov = await c.query<{ activo: boolean }>('SELECT activo FROM proveedores WHERE id = $1', [d.proveedorId]);
     if (!prov.rows[0] || !prov.rows[0].activo) throw new ErrorDeUsuario('El proveedor no existe o está archivado');
     await asegurarCategorias(c);
@@ -247,6 +253,9 @@ export async function cerrarCompra(s: SesionActiva, entrada: unknown): Promise<R
       }
     }
 
+    if (d.abiertaId) {
+      await c.query(`UPDATE compras_abiertas SET estado = 'cerrada', compra_id = $2, cerrada_en = now(), modificada_por = $3, modificado_en = now() WHERE id = $1`, [d.abiertaId, compraId, s.usuarioId]);
+    }
     await auditar(c, s.usuarioId, 'cerrar', 'compra', { numero, proveedor: d.proveedorId, total: deCentavos(calc.total), comprobante: d.comprobante, pago: d.pago.tipo, categoria: d.categoria, modoCostos: d.modoCostos, costos: cambiosDeCosto, reemplaza: reemplazada }, { entidadId: compraId });
     return { id: compraId, numero, total: deCentavos(calc.total), impuesto: deCentavos(impuesto), repetida: false };
   });

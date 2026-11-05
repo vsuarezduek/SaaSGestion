@@ -69,7 +69,8 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Función | Estado | Nota |
 |---|---|---|
 | Compras, categorías, actualizar costos, faltantes, cta. cte., impuesto por transacción, editar y anular | ✅ | D-022 |
-| Compras abiertas (borradores) y nota de crédito de proveedor | ⬜ | Pendiente |
+| Compras abiertas (borradores) | ✅ | D-035 |
+| Nota de crédito de proveedor | ⬜ | Pendiente: toca caja, stock y cuenta corriente; se define con el dueño |
 
 ## Cajas
 | Función | Estado | Nota |
