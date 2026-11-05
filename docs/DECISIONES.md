@@ -225,3 +225,8 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Ventas:** el buscador de ventas se reemplazó por un buscador de cliente con selector de comprobante (remito, factura A/B, sin comprobante) que abre la venta nueva ya cargada. Se quitó la fecha de entrega del formulario de venta.
 - **Cierre de venta:** si falta el medio de pago o la caja, se avisa en castellano (antes aparecía «Invalid uuid»). Lo mismo para cliente y proveedor en el resto de los formularios.
 - **Pendiente de revisar con el dueño:** los permisos de las pantallas movidas siguen siendo los de siempre (en el servidor); en Ajustes se muestran a quien tiene permiso de ajustes.
+
+## D-034 · Ventas: buscador sin listado y cuenta corriente; fichas con casilla «Modificar»
+- **Estado:** Aceptada. Sin migraciones.
+- **Ventas:** el buscador de cliente no lista a nadie hasta que se escribe; sin texto ofrece «Consumidor final →» para vender directo. Se puede tildar «Dejar en cuenta corriente»: si el cliente tiene cuenta corriente habilitada en su categoría, la venta abre con ese cobro elegido; si no, el buscador avisa por qué no (la regla de la categoría no cambia y el servidor la sigue exigiendo).
+- **Clientes y proveedores:** la ficha va arriba y se ve de solo lectura; la casilla «Modificar» habilita los campos y muestra Guardar y Archivar. Destildarla descarta lo no guardado.

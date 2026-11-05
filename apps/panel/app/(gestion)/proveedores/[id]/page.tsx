@@ -23,6 +23,10 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
         <h1 style={{ fontFamily: 'Georgia, serif' }}>{p.nombre}</h1>
         <Link href={`/compras/nueva?proveedor=${p.id}`} style={{ ...boton, textDecoration: 'none' }}>+ Compra</Link>
       </div>
+      <FormularioPersona
+        tipo="proveedor" categoriasProveedor={cats}
+        inicial={{ id: p.id, nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', domicilio: p.domicilio ?? '', localidad: p.localidad ?? '', cuit: p.cuit ?? '', condicionIva: p.condicionIva ?? '', categoriaId: '', contacto: p.contacto ?? '', categoria: p.categoria ?? '', activo: p.activo, esConsumidorFinal: false }}
+      />
       <PerfilPersona sesion={s} tipo="proveedor" id={p.id} />
       <CuentaCorriente
         tipo="proveedor" id={p.id} saldo={formatearPesos(aCentavos(p.saldo))} puedeOperar
@@ -38,10 +42,6 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
         )}
         <Link href={`/productos?proveedor=${p.id}`}>Ver en Productos</Link> · <Link href={`/ajustes/masiva`}>Modificar costos masivamente</Link>
       </details>
-      <FormularioPersona
-        tipo="proveedor" categoriasProveedor={cats}
-        inicial={{ id: p.id, nombre: p.nombre, telefono: p.telefono ?? '', email: p.email ?? '', domicilio: p.domicilio ?? '', localidad: p.localidad ?? '', cuit: p.cuit ?? '', condicionIva: p.condicionIva ?? '', categoriaId: '', contacto: p.contacto ?? '', categoria: p.categoria ?? '', activo: p.activo, esConsumidorFinal: false }}
-      />
     </main>
   );
 }

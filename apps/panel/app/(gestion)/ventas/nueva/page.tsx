@@ -7,8 +7,8 @@ import NuevaVenta from './NuevaVenta.tsx';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Nueva({ searchParams }: { searchParams: Promise<{ abierta?: string; editar?: string; cliente?: string; comprobante?: string }> }) {
-  const { abierta: abiertaId, editar, cliente: clienteId, comprobante } = await searchParams;
+export default async function Nueva({ searchParams }: { searchParams: Promise<{ abierta?: string; editar?: string; cliente?: string; comprobante?: string; cc?: string }> }) {
+  const { abierta: abiertaId, editar, cliente: clienteId, comprobante, cc } = await searchParams;
   const s = await sesionObligatoria();
   const abierta = abiertaId ? await obtenerAbierta(s, abiertaId) : null;
   const edicion = editar ? await datosParaEditar(s, editar) : null;
@@ -24,6 +24,7 @@ export default async function Nueva({ searchParams }: { searchParams: Promise<{ 
         abierta={abierta}
         edicion={edicion ? { ventaId: editar!, numero: edicion.numero, datos: edicion.datos } : null}
         comprobanteInicial={['remito', 'factura_a', 'factura_b', 'sin_comprobante'].includes(comprobante ?? '') ? comprobante : undefined}
+        enCuentaCorrienteInicial={cc === '1' && Boolean(elegido?.cuentaCorriente)}
         listas={listas}
         medios={medios.filter((m) => m.activo).map((m) => ({ id: m.id, nombre: m.nombre, comisionPct: m.comisionPct, ivaComision: m.ivaComision, cajaIds: m.cajaIds }))}
         cajas={cajas.filter((c) => c.abierta).map((c) => ({ id: c.id, nombre: c.nombre }))}

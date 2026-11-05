@@ -16,6 +16,8 @@ interface Props {
   clienteInicial: Cliente;
   /** Tipo de comprobante elegido desde el buscador de Ventas. */
   comprobanteInicial?: string;
+  /** Se eligió «dejar en cuenta corriente» desde el buscador de Ventas (solo llega si el cliente la tiene habilitada). */
+  enCuentaCorrienteInicial?: boolean;
   /** Venta abierta que se está retomando (si la hay). */
   abierta?: { id: string; version: number; datos: Borrador } | null;
   /** Venta cerrada que se está corrigiendo: al cerrar, esa se anula y la nueva la reemplaza. */
@@ -26,7 +28,7 @@ const COMPROBANTES: [string, string][] = [['remito', 'Remito'], ['factura_b', 'F
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comprobanteInicial, abierta, edicion }: Props) {
+export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comprobanteInicial, enCuentaCorrienteInicial, abierta, edicion }: Props) {
   const ini = abierta?.datos ?? edicion?.datos;
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma venta no se cierra dos veces
@@ -44,7 +46,7 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comp
   const [renglones, setRenglones] = useState<Renglon[]>(() => (ini?.renglones ?? []).map((r) => ({ clave: ++contador, ...r })));
   const [busquedaProd, setBusquedaProd] = useState('');
   const [resultadosProd, setResultadosProd] = useState<Producto[]>([]);
-  const [cobroTipo, setCobroTipo] = useState<'caja' | 'cuenta_corriente'>(ini?.cobroTipo ?? 'caja');
+  const [cobroTipo, setCobroTipo] = useState<'caja' | 'cuenta_corriente'>(ini?.cobroTipo ?? (enCuentaCorrienteInicial ? 'cuenta_corriente' : 'caja'));
   const [medioId, setMedioId] = useState(ini?.medioId ?? '');
   const [cajaId, setCajaId] = useState(ini?.cajaId ?? '');
   const [nota, setNota] = useState(ini?.nota ?? '');
