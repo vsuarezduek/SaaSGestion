@@ -5,6 +5,7 @@ import {
   agregarCategoriaDeCompra, anularCompra, buscarProductosParaCompra, buscarProveedoresParaCompra, cerrarCompra, faltantesParaComprar,
   type Faltante, type ProductoParaCompra, type ProveedorParaCompra,
 } from '../../../lib/compras.ts';
+import { ConflictoDeVersionCompra, descartarCompraAbierta, guardarCompraAbierta } from '../../../lib/comprasAbiertas.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 
@@ -48,6 +49,31 @@ export async function agregarCategoriaAccion(nombre: string): Promise<{ error?: 
   const s = await sesionObligatoria();
   try {
     await agregarCategoriaDeCompra(s, nombre);
+  } catch (e) {
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+  revalidatePath('/compras', 'layout');
+  return {};
+}
+
+export async function guardarCompraAbiertaAccion(id: string | null, version: number, datos: unknown): Promise<{ id?: string; version?: number; error?: string; conflicto?: boolean }> {
+  const s = await sesionObligatoria();
+  try {
+    const r = await guardarCompraAbierta(s, id, version, datos);
+    revalidatePath('/compras', 'layout');
+    return { id: r.id, version: r.version };
+  } catch (e) {
+    if (e instanceof ConflictoDeVersionCompra) return { error: e.message, conflicto: true };
+    if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function descartarCompraAbiertaAccion(id: string): Promise<{ error?: string }> {
+  const s = await sesionObligatoria();
+  try {
+    await descartarCompraAbierta(s, id);
   } catch (e) {
     if (e instanceof ErrorDeUsuario || e instanceof ErrorDePermiso) return { error: e.message };
     throw e;

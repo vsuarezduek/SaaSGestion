@@ -705,4 +705,22 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM productos WHERE nombre = 'Borrable') <> 0 THEN RAISE EXCEPTION 'no se pudo borrar un producto sin historia'; END IF;
 END $$;
 
+-- 27) Compras abiertas: aisladas por comercio; cerradas o descartadas no se modifican y nunca se borran.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE prov uuid; ab uuid; BEGIN
+  INSERT INTO proveedores (tenant_id, nombre) VALUES (app.tenant_id(), 'Prov borrador') RETURNING id INTO prov;
+  INSERT INTO compras_abiertas (tenant_id, proveedor_id, datos) VALUES (app.tenant_id(), prov, '{}'::jsonb) RETURNING id INTO ab;
+  UPDATE compras_abiertas SET estado = 'descartada' WHERE id = ab;
+  BEGIN UPDATE compras_abiertas SET estado = 'abierta' WHERE id = ab; RAISE EXCEPTION 'permitió reabrir una compra descartada';
+  EXCEPTION WHEN restrict_violation THEN NULL; END;
+  BEGIN DELETE FROM compras_abiertas WHERE id = ab; RAISE EXCEPTION 'permitió borrar una compra abierta';
+  EXCEPTION WHEN insufficient_privilege OR restrict_violation THEN NULL; END;
+  BEGIN INSERT INTO compras_abiertas (tenant_id, proveedor_id, datos, estado) VALUES (app.tenant_id(), prov, '{}'::jsonb, 'cerrada'); RAISE EXCEPTION 'permitió una compra cerrada sin compra';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM compras_abiertas) <> 0 THEN RAISE EXCEPTION 'B ve las compras abiertas de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

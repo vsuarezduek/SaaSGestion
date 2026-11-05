@@ -290,11 +290,13 @@ export const esquemaDevolucionPago = z.object({
 });
 
 // ───────── Compras y órdenes de pago a proveedores ─────────
+const corto = (max: number) => z.string().max(max);
 export const COMPROBANTES_COMPRA = ['remito', 'factura_a', 'factura_b', 'sin_comprobante'] as const;
 export const MODOS_COSTOS = ['ninguno', 'costo', 'costo_y_precio'] as const;
 
 export const esquemaCompra = z.object({
   clave: z.string().uuid(),
+  abiertaId: z.string().uuid().nullable().default(null),         // si la compra salió de una compra abierta, esa se da por cerrada
   reemplazaCompraId: z.string().uuid().nullable().default(null), // edición de una compra cerrada: esa se anula y esta la reemplaza
   proveedorId: z.string().uuid('Elegí el proveedor'),
   categoria: z.string().trim().min(1, 'Elegí la categoría de la compra').max(60),
@@ -324,6 +326,27 @@ export const esquemaCompra = z.object({
 });
 export type DatosCompra = z.infer<typeof esquemaCompra>;
 
+/** Compra abierta (borrador): el formulario tal como está, sin validar todo lo que exige cerrarla. */
+export const esquemaBorradorCompra = z.object({
+  proveedorId: z.string().uuid('Elegí el proveedor'),
+  categoria: corto(60),
+  comprobante: corto(30),
+  nroComprobante: corto(30),
+  fecha: corto(30),
+  descTotal: corto(20),
+  modoCostos: corto(30),
+  pagoTipo: z.enum(['caja', 'cuenta_corriente']),
+  cajaId: corto(40),
+  nota: corto(500),
+  total: corto(20),                                    // estimado, para mostrar en la lista
+  renglones: z
+    .array(z.object({
+      productoId: z.string().uuid().nullable(), descripcion: corto(200), cantidad: corto(20), costo: corto(20), descuentoPct: corto(20), iva: z.number().min(0).max(100),
+    }))
+    .max(200, 'Demasiados renglones'),
+});
+export type BorradorCompra = z.infer<typeof esquemaBorradorCompra>;
+
 export const esquemaOrdenPago = z.object({
   clave: z.string().uuid(),
   proveedorId: z.string().uuid('Elegí el proveedor'),
@@ -336,7 +359,6 @@ export const esquemaOrdenPago = z.object({
 export type DatosOrdenPago = z.infer<typeof esquemaOrdenPago>;
 
 // ───────── Ventas abiertas (borradores) ─────────
-const corto = (max: number) => z.string().max(max);
 export const esquemaBorrador = z.object({
   clienteId: z.string().uuid('Elegí el cliente'),
   comprobante: corto(30),

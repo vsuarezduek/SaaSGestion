@@ -230,3 +230,8 @@ La base de producción (Neon, rama `main`) está reservada y vacía a propósito
 - **Estado:** Aceptada. Sin migraciones.
 - **Ventas:** el buscador de cliente no lista a nadie hasta que se escribe; sin texto ofrece «Consumidor final →» para vender directo. Se puede tildar «Dejar en cuenta corriente»: si el cliente tiene cuenta corriente habilitada en su categoría, la venta abre con ese cobro elegido; si no, el buscador avisa por qué no (la regla de la categoría no cambia y el servidor la sigue exigiendo).
 - **Clientes y proveedores:** la ficha va arriba y se ve de solo lectura; la casilla «Modificar» habilita los campos y muestra Guardar y Archivar. Destildarla descarta lo no guardado.
+
+## D-035 · Compras abiertas (borradores de compra)
+- **Estado:** Aceptada para la etapa 1 (migración 0024, aditiva: `compras_abiertas`). Espejo de las ventas abiertas (D-010).
+- **Qué es:** una compra a medio cargar que se deja guardada («Dejar abierta») y cualquier usuario con acceso a Compras puede retomar, cerrar o descartar. Aparece en el listado de Compras. No mueve caja, stock ni cuenta corriente hasta cerrarla.
+- **Reglas:** control de versión (si dos personas la tocan, la segunda se entera en vez de pisar a la primera); al cerrarla nace la compra real y el borrador queda cerrado, una sola vez aunque se intente cerrar a la vez desde dos lugares; descartar la deja registrada, nunca se borra; todo queda auditado. A diferencia de las ventas, se guarda a mano (no se guarda sola).

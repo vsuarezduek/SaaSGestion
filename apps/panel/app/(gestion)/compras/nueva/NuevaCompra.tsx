@@ -1,9 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
-import { aCentavos, calcularCompra, formatearCantidad, formatearPesos, impuestoDeTransaccion, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
+import { aCentavos, calcularCompra, deCentavos, formatearCantidad, formatearPesos, impuestoDeTransaccion, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
-import { agregarCategoriaAccion, buscarProductosCompraAccion, buscarProveedoresAccion, cerrarCompraAccion, faltantesAccion } from '../acciones.ts';
+import { agregarCategoriaAccion, buscarProductosCompraAccion, buscarProveedoresAccion, cerrarCompraAccion, faltantesAccion, guardarCompraAbiertaAccion } from '../acciones.ts';
 
 interface Proveedor { id: string; nombre: string; saldo: string }
 interface Producto { id: string; nombre: string; codigo: string | null; unidad: string; costo: string; iva: number; stock: string }
@@ -18,6 +18,9 @@ interface Props {
     datos: { categoria: string; comprobante: string; nroComprobante: string; fecha: string; descTotal: string; modoCostos: string; pagoTipo: 'caja' | 'cuenta_corriente'; cajaId: string; nota: string;
       renglones: { productoId: string | null; descripcion: string; cantidad: string; costo: string; descuentoPct: string; iva: number }[] };
   } | null;
+  /** Compra abierta (borrador) que se está retomando. */
+  abierta?: { id: string; version: number; datos: { categoria: string; comprobante: string; nroComprobante: string; fecha: string; descTotal: string; modoCostos: string; pagoTipo: 'caja' | 'cuenta_corriente'; cajaId: string; nota: string;
+    renglones: { productoId: string | null; descripcion: string; cantidad: string; costo: string; descuentoPct: string; iva: number }[] } } | null;
   /** Productos bajo el stock mínimo (cuando se llega desde "Comprar faltantes"). */
   faltantes?: (Producto & { cantidad: string })[];
   puedeAgregarCategorias: boolean;
@@ -28,8 +31,9 @@ const MODOS: [string, string][] = [['costo_y_precio', 'Actualizar costo y manten
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaCompra({ categorias, cajas, proveedorInicial, edicion, faltantes, puedeAgregarCategorias }: Props) {
-  const ini = edicion?.datos;
+export default function NuevaCompra({ categorias, cajas, proveedorInicial, edicion, abierta, faltantes, puedeAgregarCategorias }: Props) {
+  const ini = edicion?.datos ?? abierta?.datos;
+  const abiertaRef = useRef<{ id: string | null; version: number }>({ id: abierta?.id ?? null, version: abierta?.version ?? 1 });
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma compra no se cierra dos veces
   const [proveedor, setProveedor] = useState<Proveedor | null>(proveedorInicial);
@@ -124,12 +128,25 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
       setMsg(null);
       if (!proveedor) { setMsg('Elegí el proveedor'); return; }
       const r = await cerrarCompraAccion({
-        clave, reemplazaCompraId: edicion?.compraId ?? null, proveedorId: proveedor.id, categoria, comprobante, nroComprobante, fecha, descuentoTotalPct: pctNum(descTotal), modoCostos, nota,
+        clave, abiertaId: abiertaRef.current.id, reemplazaCompraId: edicion?.compraId ?? null, proveedorId: proveedor.id, categoria, comprobante, nroComprobante, fecha, descuentoTotalPct: pctNum(descTotal), modoCostos, nota,
         renglones: renglones.map((x) => ({ productoId: x.productoId, descripcion: x.descripcion, cantidad: x.cantidad, costo: x.costo, descuentoPct: pctNum(x.descuentoPct), iva: x.iva })),
         pago: pagoTipo === 'cuenta_corriente' ? { tipo: 'cuenta_corriente' } : { tipo: 'caja', cajaId },
       });
       if (r.error) { setMsg(r.error); return; }
       router.push(`/compras/${r.id}`);
+    });
+
+  // Deja la compra guardada para retomarla después (no mueve caja, stock ni cuenta corriente hasta cerrarla).
+  const dejarAbierta = () =>
+    iniciar(async () => {
+      setMsg(null);
+      if (!proveedor) { setMsg('Elegí el proveedor para dejar la compra abierta'); return; }
+      const r = await guardarCompraAbiertaAccion(abiertaRef.current.id, abiertaRef.current.version, {
+        proveedorId: proveedor.id, categoria, comprobante, nroComprobante, fecha, descTotal, modoCostos, pagoTipo, cajaId, nota, total: calculo.ok ? deCentavos(calculo.c.total) : '0',
+        renglones: renglones.map((x) => ({ productoId: x.productoId, descripcion: x.descripcion, cantidad: x.cantidad, costo: x.costo, descuentoPct: x.descuentoPct, iva: x.iva })),
+      });
+      if (r.error) { setMsg(r.error); return; }
+      router.push('/compras');
     });
 
   const $ = (c: number) => formatearPesos(c);
@@ -246,6 +263,7 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
         </div>
         <div style={{ marginTop: 14 }}>
           <button type="button" style={{ ...boton, fontSize: 16, padding: '12px 20px' }} disabled={pend || renglones.length === 0 || !calculo.ok || !proveedor || (pagoTipo === 'caja' && !cajaId)} onClick={cerrar}>{pend ? 'Guardando…' : edicion ? 'Guardar cambios' : 'Cerrar compra'}</button>{' '}
+          {!edicion && <button type="button" style={botonSecundario} disabled={pend || renglones.length === 0} onClick={dejarAbierta}>Dejar abierta</button>}{' '}
           <button type="button" style={botonSecundario} disabled={pend} onClick={() => router.push(edicion ? `/compras/${edicion.compraId}` : '/compras')}>{edicion ? 'Cancelar edición' : 'Cancelar'}</button>
         </div>
       </div>
