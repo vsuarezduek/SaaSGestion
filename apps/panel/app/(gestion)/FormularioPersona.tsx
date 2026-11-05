@@ -20,6 +20,10 @@ const CONDICIONES: [string, string][] = [
 
 export default function FormularioPersona({ tipo, inicial, categorias = [], categoriasProveedor = [] }: Props) {
   const [d, setD] = useState(inicial);
+  // Una ficha existente se ve primero tal cual está; la casilla «Modificar» habilita los campos y al destildarla se vuelve a lo último guardado.
+  const esNueva = inicial.id === null;
+  const [editando, setEditando] = useState(esNueva);
+  const [base, setBase] = useState(inicial);
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
   const set = <K extends keyof Persona>(k: K, v: Persona[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -37,7 +41,9 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
         ? { ...comunes, categoriaId: d.categoriaId || null, condicionIva: d.condicionIva || 'consumidor_final' }
         : { ...comunes, contacto: d.contacto, categoria: d.categoria, condicionIva: d.condicionIva || null };
       const r = await guardarPersonaAccion(tipo, d.id, datos);
-      if (r?.error) setMsg(r.error);
+      if (r?.error) { setMsg(r.error); return; }
+      setBase(d);
+      if (!esNueva) setEditando(false);
     });
   const archivar = () =>
     iniciar(async () => {
@@ -45,9 +51,20 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
       if (r?.error) setMsg(r.error);
     });
 
+  const alternarEdicion = (activar: boolean) => {
+    if (!activar) { setD(base); setMsg(null); }
+    setEditando(activar);
+  };
+
   return (
     <div style={{ ...tarjeta, maxWidth: 720 }}>
       {msg && <div style={estiloError}>{msg}</div>}
+      {!esNueva && (
+        <label style={{ display: 'inline-block', marginBottom: 10, fontSize: 14, fontWeight: 600 }}>
+          <input type="checkbox" checked={editando} disabled={pend} onChange={(e) => alternarEdicion(e.target.checked)} /> Modificar
+        </label>
+      )}
+      <fieldset disabled={!editando} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {texto('nombre', 'Nombre', { flex: '2 1 260px' })}
         {tipo === 'cliente' ? (
@@ -82,12 +99,15 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
           </select>
         </label>
       </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
-        {d.id && !d.esConsumidorFinal && (
-          <button type="button" style={botonSecundario} disabled={pend} onClick={archivar}>{d.activo ? 'Archivar' : 'Restaurar'}</button>
-        )}
-      </div>
+      </fieldset>
+      {editando && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
+          {d.id && !d.esConsumidorFinal && (
+            <button type="button" style={botonSecundario} disabled={pend} onClick={archivar}>{d.activo ? 'Archivar' : 'Restaurar'}</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
