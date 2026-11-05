@@ -723,4 +723,35 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM compras_abiertas) <> 0 THEN RAISE EXCEPTION 'B ve las compras abiertas de A'; END IF;
 END $$;
 
+-- 28) Notas de crédito de proveedor: aisladas por comercio, solo se anulan, sus renglones y movimientos no se tocan.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE prov uuid; n uuid; prod uuid; BEGIN
+  INSERT INTO proveedores (tenant_id, nombre) VALUES (app.tenant_id(), 'Prov NC') RETURNING id INTO prov;
+  INSERT INTO productos (tenant_id, nombre) VALUES (app.tenant_id(), 'Prod NC') RETURNING id INTO prod;
+  INSERT INTO notas_credito_compra (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, iva, total)
+    VALUES (app.tenant_id(), 1, prov, 'sin_comprobante', 100, 100, 0, 100) RETURNING id INTO n;
+  INSERT INTO nota_credito_compra_renglones (tenant_id, nota_id, orden, producto_id, descripcion, cantidad, costo, iva, neto)
+    VALUES (app.tenant_id(), n, 1, prod, 'Prod NC', 1, 100, 0, 100);
+  INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, nota_credito_compra_id) VALUES (app.tenant_id(), prod, 'devolucion_compra', -1, n);
+  INSERT INTO cuenta_corriente_movimientos (tenant_id, proveedor_id, tipo, importe, nota_credito_compra_id) VALUES (app.tenant_id(), prov, 'nota_credito_compra', -100, n);
+  PERFORM set_config('app.prueba_ncc', n::text, true);
+  BEGIN UPDATE notas_credito_compra SET total = 5 WHERE id = n; RAISE EXCEPTION 'permitió cambiar el total de una nota cerrada';
+  EXCEPTION WHEN restrict_violation THEN NULL; END;
+  BEGIN DELETE FROM notas_credito_compra WHERE id = n; RAISE EXCEPTION 'permitió borrar una nota';
+  EXCEPTION WHEN insufficient_privilege OR restrict_violation THEN NULL; END;
+  BEGIN UPDATE nota_credito_compra_renglones SET cantidad = 9 WHERE nota_id = n; RAISE EXCEPTION 'permitió cambiar un renglón';
+  EXCEPTION WHEN insufficient_privilege OR restrict_violation THEN NULL; END;
+  BEGIN INSERT INTO notas_credito_compra (tenant_id, numero, proveedor_id, comprobante, subtotal, neto, iva, total) VALUES (app.tenant_id(), 2, prov, 'factura_a', 1, 1, 0, 1);
+    RAISE EXCEPTION 'permitió un comprobante inválido';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  UPDATE notas_credito_compra SET estado = 'anulada', anulada_en = now(), motivo_anulacion = 'prueba' WHERE id = n;
+  BEGIN UPDATE notas_credito_compra SET estado = 'cerrada' WHERE id = n; RAISE EXCEPTION 'permitió reabrir una nota anulada';
+  EXCEPTION WHEN restrict_violation THEN NULL; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM notas_credito_compra) <> 0 THEN RAISE EXCEPTION 'B ve las notas de crédito de A'; END IF;
+  IF (SELECT count(*) FROM nota_credito_compra_renglones) <> 0 THEN RAISE EXCEPTION 'B ve los renglones de las notas de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

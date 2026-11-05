@@ -61,7 +61,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Editar una venta cerrada | ✅ | D-020. Anula la original y crea la nueva en una sola transacción |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
-| Nota de crédito y devolución | 🟡 | D-018. Desde la venta, con devolución a caja o cuenta corriente. Falta nota sin venta de origen y comprobante electrónico |
+| Nota de crédito y devolución | 🟡 | D-018, D-036. Desde la venta o sin venta de origen (cliente, productos y precio a mano), con devolución a caja o cuenta corriente. Falta comprobante electrónico |
 | PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Con la casilla conectada (Ajustes → Correo, D-032) el envío es automático, con el detalle en el cuerpo del mail; falta el PDF adjunto |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
@@ -70,7 +70,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Compras, categorías, actualizar costos, faltantes, cta. cte., impuesto por transacción, editar y anular | ✅ | D-022 |
 | Compras abiertas (borradores) | ✅ | D-035 |
-| Nota de crédito de proveedor | ⬜ | Pendiente: toca caja, stock y cuenta corriente; se define con el dueño |
+| Nota de crédito de proveedor | ✅ | D-036. Siempre contra cuenta corriente; baja stock y deuda, no mueve caja |
 
 ## Cajas
 | Función | Estado | Nota |

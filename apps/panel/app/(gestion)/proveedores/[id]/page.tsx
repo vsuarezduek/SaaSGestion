@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { boton } from '../../../../lib/estilos.ts';
+import { boton, botonSecundario } from '../../../../lib/estilos.ts';
 import { listarProductos } from '../../../../lib/catalogo.ts';
 import { listarCajas } from '../../../../lib/cajas.ts';
 import { categoriasDeProveedor, movimientosDe, obtenerProveedor } from '../../../../lib/personas.ts';
@@ -21,7 +21,10 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h1 style={{ fontFamily: 'Georgia, serif' }}>{p.nombre}</h1>
-        <Link href={`/compras/nueva?proveedor=${p.id}`} style={{ ...boton, textDecoration: 'none' }}>+ Compra</Link>
+        <span>
+          <Link href={`/compras/nota-de-credito/nueva?proveedor=${p.id}`} style={{ ...botonSecundario, textDecoration: 'none', marginRight: 8 }}>Nota de crédito</Link>
+          <Link href={`/compras/nueva?proveedor=${p.id}`} style={{ ...boton, textDecoration: 'none' }}>+ Compra</Link>
+        </span>
       </div>
       <FormularioPersona
         tipo="proveedor" categoriasProveedor={cats}
@@ -30,7 +33,7 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
       <PerfilPersona sesion={s} tipo="proveedor" id={p.id} />
       <CuentaCorriente
         tipo="proveedor" id={p.id} saldo={formatearPesos(aCentavos(p.saldo))} puedeOperar
-        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId, devolucionId: m.devolucionId, compraId: m.compraId, ordenPagoId: m.ordenPagoId }))}
+        filas={movs.map((m) => ({ id: m.id, fecha: m.creadoEn.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }), tipo: m.tipo, importe: formatearPesos(aCentavos(m.importe)), importeCrudo: m.importe.replace('-', ''), concepto: m.concepto ?? '', revertido: m.revertido, usuario: m.usuario ?? '', saldo: formatearPesos(aCentavos(m.saldo)), ventaId: m.ventaId, reciboId: m.reciboId, devolucionId: m.devolucionId, compraId: m.compraId, ordenPagoId: m.ordenPagoId, notaCreditoCompraId: m.notaCreditoCompraId }))}
         cajasPago={cajas.filter((k) => k.abierta).map((k) => ({ id: k.id, nombre: k.nombre }))}
       />
       <details style={{ background: '#fff', border: '1px solid #d3e6de', borderRadius: 12, padding: '10px 16px', marginBottom: 14 }}>

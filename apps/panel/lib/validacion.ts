@@ -265,6 +265,52 @@ export const esquemaNotaCredito = z.object({
 });
 export type DatosNotaCredito = z.infer<typeof esquemaNotaCredito>;
 
+// Nota de crédito libre (sin venta de origen): el cliente, los productos y el precio que se devuelve los define quien la emite.
+export const esquemaNotaCreditoLibre = z.object({
+  clave: z.string().uuid(),
+  clienteId: z.string().uuid('Elegí el cliente'),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+  renglones: z
+    .array(z.object({
+      productoId: z.string().uuid().nullable(),                  // null = ítem libre (no mueve stock)
+      descripcion: z.string().trim().max(200),
+      cantidad: cantidad('Cantidad', { cero: false }),
+      precio: importeNoNegativo('Precio'),                       // unitario, tal como se devuelve
+      descuentoPct: pct('El descuento del renglón'),
+      iva: alicuota,
+    }))
+    .min(1, 'Agregá al menos un producto a devolver')
+    .max(200, 'Demasiados renglones'),
+  cobro: z.discriminatedUnion('tipo', [
+    z.object({ tipo: z.literal('caja'), medioPagoId: z.string().uuid('Elegí el medio de pago'), cajaId: z.string().uuid('Elegí la caja') }),
+    z.object({ tipo: z.literal('cuenta_corriente') }),
+  ]),
+});
+export type DatosNotaCreditoLibre = z.infer<typeof esquemaNotaCreditoLibre>;
+
+// Nota de crédito de proveedor: se devuelve mercadería comprada; siempre baja lo que se le debe (cuenta corriente), nunca mueve caja.
+export const esquemaNotaCreditoCompra = z.object({
+  clave: z.string().uuid(),
+  proveedorId: z.string().uuid('Elegí el proveedor'),
+  compraOrigenId: z.string().uuid().nullable().default(null),   // informativo: la compra a la que se refiere
+  comprobante: z.enum(['nota_credito_a', 'nota_credito_b', 'sin_comprobante']),
+  nroComprobante: textoOpcional(30),
+  fecha: fechaArgentina,
+  nota: textoOpcional(500),
+  renglones: z
+    .array(z.object({
+      productoId: z.string().uuid().nullable(),
+      descripcion: z.string().trim().max(200),
+      cantidad: cantidad('Cantidad', { cero: false }),
+      costo: importeNoNegativo('Costo'),                         // unitario, sin IVA
+      iva: alicuota,
+    }))
+    .min(1, 'Agregá al menos un producto a devolver')
+    .max(200, 'Demasiados renglones'),
+});
+export type DatosNotaCreditoCompra = z.infer<typeof esquemaNotaCreditoCompra>;
+
 // ───────── Recibos de cuenta corriente ─────────
 export const esquemaRecibo = z.object({
   clave: z.string().uuid(),

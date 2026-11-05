@@ -5,7 +5,7 @@ import { auditar, ErrorDeUsuario, type SesionActiva } from './auth.ts';
 import { cajaEn } from './cajas.ts';
 import { conTenant } from './db.ts';
 import { exigir } from './permisos.ts';
-import { esquemaMedioPago, esquemaNotaCredito, esquemaVenta, primerError, type Borrador } from './validacion.ts';
+import { esquemaMedioPago, esquemaNotaCredito, esquemaNotaCreditoLibre, esquemaVenta, primerError, type Borrador } from './validacion.ts';
 import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, escaparLike, terminosDeBusqueda } from '../../../packages/dominio/src/index.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -453,62 +453,114 @@ export async function emitirNotaCredito(s: SesionActiva, entrada: unknown): Prom
       esTotal ? { totalFinal: aCentavos(origen.total) } : Number(origen.descuento_pct),
     );
 
-    let cajaDestino: Awaited<ReturnType<typeof cajaEn>> | null = null;
-    let medioId: string | null = null;
-    if (d.cobro.tipo === 'cuenta_corriente') {
-      if (!cli.rows[0]?.cc || cli.rows[0].cf) throw new ErrorDeUsuario('La categoría de este cliente no tiene cuenta corriente habilitada');
-    } else {
-      const m = await c.query<{ id: string }>(
-        `SELECT m.id FROM medios_pago m WHERE m.id = $1 AND m.activo AND EXISTS (SELECT 1 FROM medio_pago_cajas x WHERE x.medio_id = m.id AND x.caja_id = $2)`,
-        [d.cobro.medioPagoId, d.cobro.cajaId]);
-      if (!m.rows[0]) throw new ErrorDeUsuario('Ese medio de pago no está habilitado para esa caja');
-      medioId = m.rows[0].id;
-      cajaDestino = await cajaEn(c, s, d.cobro.cajaId);
-      if (!cajaDestino.turnoId) throw new ErrorDeUsuario(`La caja ${cajaDestino.nombre} está cerrada: abrila para devolver el dinero`);
-    }
+    return registrarNotaCredito(c, s, {
+      clienteId: origen.cliente_id, cli: cli.rows[0], origen: { id: origen.id, numero: origen.numero }, d, calc,
+      lineas: lineas.map((l) => ({ productoId: l.producto_id, descripcion: l.descripcion, cantidad: l.devuelve, precio: l.precio, descuentoPct: l.descuento_pct, iva: l.iva, renglonOrigenId: l.id })),
+    });
+  });
+}
 
-    const numero = await siguienteNumero(c);
-    const pct = calc.subtotal > 0 ? Math.round((calc.descuentoTotal / calc.subtotal) * 10000) / 100 : 0;
-    const vr = await c.query<{ id: string }>(
-      `INSERT INTO ventas (tenant_id, numero, estado, clave, cliente_id, comprobante, fecha, descuento_pct, subtotal, descuento_total, total, iva_incluido,
-                           en_cuenta_corriente, medio_pago_id, caja_id, comision, nota, usuario_id, venta_origen_id)
-       VALUES (app.tenant_id(), $1, 'cerrada', $2, $3, 'nota_credito', COALESCE($4::timestamptz, now()), $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15) RETURNING id`,
-      [numero, d.clave, origen.cliente_id, d.fecha, pct, deCentavos(calc.subtotal), deCentavos(calc.descuentoTotal), deCentavos(calc.total), deCentavos(calc.ivaIncluido),
-       d.cobro.tipo === 'cuenta_corriente', medioId, cajaDestino?.id ?? null, d.nota, s.usuarioId, origen.id],
+interface DatosRegistro {
+  clienteId: string;
+  cli: { cc: boolean | null; cf: boolean } | undefined;
+  origen: { id: string; numero: number } | null;
+  d: { clave: string; fecha: string | null; nota: string | null; cobro: { tipo: 'caja'; medioPagoId: string; cajaId: string } | { tipo: 'cuenta_corriente' } };
+  calc: ReturnType<typeof calcularVenta>;
+  lineas: { productoId: string | null; descripcion: string; cantidad: string; precio: string; descuentoPct: string; iva: string; renglonOrigenId: string | null }[];
+}
+
+/** Lo que tienen en común las dos notas de crédito (con venta de origen y libre): la nota, sus renglones, el stock que vuelve y la plata que se devuelve. */
+async function registrarNotaCredito(c: PoolClient, s: SesionActiva, p: DatosRegistro): Promise<ResultadoNotaCredito> {
+  const { d, calc, origen, lineas } = p;
+  let cajaDestino: Awaited<ReturnType<typeof cajaEn>> | null = null;
+  let medioId: string | null = null;
+  if (d.cobro.tipo === 'cuenta_corriente') {
+    if (!p.cli?.cc || p.cli.cf) throw new ErrorDeUsuario('La categoría de este cliente no tiene cuenta corriente habilitada');
+  } else {
+    const m = await c.query<{ id: string }>(
+      `SELECT m.id FROM medios_pago m WHERE m.id = $1 AND m.activo AND EXISTS (SELECT 1 FROM medio_pago_cajas x WHERE x.medio_id = m.id AND x.caja_id = $2)`,
+      [d.cobro.medioPagoId, d.cobro.cajaId]);
+    if (!m.rows[0]) throw new ErrorDeUsuario('Ese medio de pago no está habilitado para esa caja');
+    medioId = m.rows[0].id;
+    cajaDestino = await cajaEn(c, s, d.cobro.cajaId);
+    if (!cajaDestino.turnoId) throw new ErrorDeUsuario(`La caja ${cajaDestino.nombre} está cerrada: abrila para devolver el dinero`);
+  }
+
+  const numero = await siguienteNumero(c);
+  const ref = origen ? ` (venta N° ${origen.numero})` : '';
+  const pct = calc.subtotal > 0 ? Math.round((calc.descuentoTotal / calc.subtotal) * 10000) / 100 : 0;
+  const vr = await c.query<{ id: string }>(
+    `INSERT INTO ventas (tenant_id, numero, estado, clave, cliente_id, comprobante, fecha, descuento_pct, subtotal, descuento_total, total, iva_incluido,
+                         en_cuenta_corriente, medio_pago_id, caja_id, comision, nota, usuario_id, venta_origen_id)
+     VALUES (app.tenant_id(), $1, 'cerrada', $2, $3, 'nota_credito', COALESCE($4::timestamptz, now()), $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15) RETURNING id`,
+    [numero, d.clave, p.clienteId, d.fecha, pct, deCentavos(calc.subtotal), deCentavos(calc.descuentoTotal), deCentavos(calc.total), deCentavos(calc.ivaIncluido),
+     d.cobro.tipo === 'cuenta_corriente', medioId, cajaDestino?.id ?? null, d.nota, s.usuarioId, origen?.id ?? null],
+  );
+  const ncId = vr.rows[0]!.id;
+  for (const [i, l] of lineas.entries()) {
+    const k = calc.renglones[i]!;
+    await c.query(
+      `INSERT INTO venta_renglones (tenant_id, venta_id, orden, producto_id, descripcion, cantidad, precio, descuento_pct, iva, subtotal, total, iva_incluido, renglon_origen_id)
+       VALUES (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [ncId, i + 1, l.productoId, l.descripcion, l.cantidad, l.precio, l.descuentoPct, l.iva, deCentavos(k.subtotal), deCentavos(k.total), deCentavos(k.iva), l.renglonOrigenId],
     );
-    const ncId = vr.rows[0]!.id;
-    for (const [i, l] of lineas.entries()) {
-      const k = calc.renglones[i]!;
+    if (l.productoId) {
       await c.query(
-        `INSERT INTO venta_renglones (tenant_id, venta_id, orden, producto_id, descripcion, cantidad, precio, descuento_pct, iva, subtotal, total, iva_incluido, renglon_origen_id)
-         VALUES (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [ncId, i + 1, l.producto_id, l.descripcion, l.devuelve, l.precio, l.descuento_pct, l.iva, deCentavos(k.subtotal), deCentavos(k.total), deCentavos(k.iva), l.id],
+        `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, usuario_id, venta_id)
+         VALUES (app.tenant_id(), $1, 'devolucion_venta', $2, $3, $4, $5)`,
+        [l.productoId, l.cantidad, `Nota de crédito N° ${numero}`, s.usuarioId, ncId],
       );
-      if (l.producto_id) {
-        await c.query(
-          `INSERT INTO stock_movimientos (tenant_id, producto_id, tipo, cantidad, concepto, usuario_id, venta_id)
-           VALUES (app.tenant_id(), $1, 'devolucion_venta', $2, $3, $4, $5)`,
-          [l.producto_id, l.devuelve, `Nota de crédito N° ${numero}`, s.usuarioId, ncId],
-        );
-      }
     }
-    if (calc.total > 0) { // una nota de $0 no mueve plata
-      if (cajaDestino) {
-        await c.query(
-          `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, usuario_id, venta_id, fecha)
-           VALUES (app.tenant_id(), $1, $2, 'devolucion_venta', $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
-          [cajaDestino.id, cajaDestino.turnoId, deCentavos(-calc.total), `Nota de crédito N° ${numero} (venta N° ${origen.numero})`, s.usuarioId, ncId, d.fecha],
-        );
-      } else {
-        await c.query(
-          `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, concepto, usuario_id, venta_id)
-           VALUES (app.tenant_id(), $1, 'nota_credito', $2, $3, $4, $5)`,
-          [origen.cliente_id, deCentavos(-calc.total), `Nota de crédito N° ${numero} (venta N° ${origen.numero})`, s.usuarioId, ncId],
-        );
-      }
+  }
+  if (calc.total > 0) { // una nota de $0 no mueve plata
+    if (cajaDestino) {
+      await c.query(
+        `INSERT INTO caja_movimientos (tenant_id, caja_id, turno_id, tipo, importe, concepto, usuario_id, venta_id, fecha)
+         VALUES (app.tenant_id(), $1, $2, 'devolucion_venta', $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
+        [cajaDestino.id, cajaDestino.turnoId, deCentavos(-calc.total), `Nota de crédito N° ${numero}${ref}`, s.usuarioId, ncId, d.fecha],
+      );
+    } else {
+      await c.query(
+        `INSERT INTO cuenta_corriente_movimientos (tenant_id, cliente_id, tipo, importe, concepto, usuario_id, venta_id)
+         VALUES (app.tenant_id(), $1, 'nota_credito', $2, $3, $4, $5)`,
+        [p.clienteId, deCentavos(-calc.total), `Nota de crédito N° ${numero}${ref}`, s.usuarioId, ncId],
+      );
     }
-    await auditar(c, s.usuarioId, 'emitir', 'nota_credito', { numero, origen: origen.numero, total: deCentavos(calc.total), cobro: d.cobro.tipo }, { entidadId: ncId });
-    return { id: ncId, numero, total: deCentavos(calc.total), repetida: false };
+  }
+  await auditar(c, s.usuarioId, 'emitir', 'nota_credito', { numero, origen: origen?.numero ?? null, total: deCentavos(calc.total), cobro: d.cobro.tipo }, { entidadId: ncId });
+  return { id: ncId, numero, total: deCentavos(calc.total), repetida: false };
+
+}
+
+/** Nota de crédito sin venta de origen: quien la emite elige el cliente, los productos y el precio que se devuelve (no hay tope contra una venta anterior).
+ *  Igual que la otra: el stock vuelve y la plata sale de una caja (sin comisión) o baja la deuda del cliente. */
+export async function emitirNotaCreditoLibre(s: SesionActiva, entrada: unknown): Promise<ResultadoNotaCredito> {
+  exigir(s, 'ventas');
+  const v = esquemaNotaCreditoLibre.safeParse(entrada);
+  if (!v.success) throw new ErrorDeUsuario(primerError(v.error));
+  const d = v.data;
+  return conTenant(s.tenantId, async (c) => {
+    const previa = await c.query<{ id: string; numero: number; total: string }>('SELECT id, numero, total::text FROM ventas WHERE clave = $1', [d.clave]);
+    if (previa.rows[0]) return { ...previa.rows[0], repetida: true };
+
+    const cli = await c.query<{ cc: boolean | null; cf: boolean }>(
+      `SELECT k.cuenta_corriente AS cc, c.es_consumidor_final AS cf FROM clientes c LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id WHERE c.id = $1 AND c.activo`, [d.clienteId]);
+    if (!cli.rows[0]) throw new ErrorDeUsuario('El cliente no existe o está archivado');
+
+    const ids = [...new Set(d.renglones.map((r) => r.productoId).filter((x): x is string => x !== null))];
+    const prods = new Map<string, string>();
+    if (ids.length) {
+      const pr = await c.query<{ id: string; nombre: string }>('SELECT id, nombre FROM productos WHERE id = ANY($1::uuid[])', [ids]);
+      for (const f of pr.rows) prods.set(f.id, f.nombre);
+      if (prods.size !== ids.length) throw new ErrorDeUsuario('Un producto no existe');
+    }
+    const lineas = d.renglones.map((r) => {
+      const descripcion = r.productoId ? prods.get(r.productoId)! : r.descripcion;
+      if (!descripcion) throw new ErrorDeUsuario('El ítem libre necesita una descripción');
+      return { productoId: r.productoId, descripcion, cantidad: r.cantidad, precio: r.precio, descuentoPct: String(r.descuentoPct), iva: String(r.iva), renglonOrigenId: null };
+    });
+    const calc = calcularVenta(lineas.map((l) => ({ cantidad: l.cantidad, precio: aCentavos(l.precio), descuentoPct: Number(l.descuentoPct), iva: Number(l.iva) })), 0);
+    return registrarNotaCredito(c, s, { clienteId: d.clienteId, cli: cli.rows[0], origen: null, d, calc, lineas });
   });
 }
 
