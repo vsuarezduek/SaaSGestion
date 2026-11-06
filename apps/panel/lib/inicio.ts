@@ -65,6 +65,15 @@ export async function actividadReciente(s: SesionActiva, limite = 15): Promise<A
   });
 }
 
+/** Cuántas entradas tiene el historial de actividad (las salidas de sesión no se cuentan). Solo administración. */
+export async function totalActividad(s: SesionActiva): Promise<number> {
+  exigir(s, 'ajustes');
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query<{ n: string }>(`SELECT count(*) AS n FROM auditoria a WHERE NOT (a.entidad = 'sesion' AND a.accion = 'salir')`);
+    return Number(r.rows[0]!.n);
+  });
+}
+
 export const FRASES: readonly { texto: string; autor: string }[] = [
   { texto: 'No es que tengamos poco tiempo, sino que perdemos mucho.', autor: 'Séneca' },
   { texto: 'Sufrimos más a menudo en la imaginación que en la realidad.', autor: 'Séneca' },

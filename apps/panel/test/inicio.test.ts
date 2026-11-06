@@ -5,7 +5,7 @@ import { crearComercio, type SesionActiva } from '../lib/auth.ts';
 import { guardarProducto, listasDePrecios } from '../lib/catalogo.ts';
 import { faltantesParaComprar } from '../lib/compras.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
-import { actividadReciente, describirActividad, FRASES, fraseDelDia, resumenDeHoy } from '../lib/inicio.ts';
+import { actividadReciente, describirActividad, FRASES, fraseDelDia, resumenDeHoy, totalActividad } from '../lib/inicio.ts';
 import { ErrorDePermiso } from '../lib/permisos.ts';
 import { guardarProveedor } from '../lib/personas.ts';
 import { registrarStock } from '../lib/stock.ts';
@@ -68,5 +68,8 @@ test('resumen del día y actividad: sin ventas da ceros, y la actividad exige ad
   assert.ok(act.some((x) => x.texto === 'Admin creó un producto'));
   const cocina: SesionActiva = { ...A, rol: 'cocina', permisos: [] };
   await assert.rejects(actividadReciente(cocina), ErrorDePermiso);
+  assert.ok((await totalActividad(A)) >= act.length, 'el total cuenta todo el historial, no solo lo mostrado');
+  assert.ok((await actividadReciente(A, 1)).length <= 1);
+  await assert.rejects(totalActividad(cocina), ErrorDePermiso);
   assert.equal((await resumenDeHoy(cocina)).ventas, 0);
 });
