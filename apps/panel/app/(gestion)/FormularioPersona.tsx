@@ -1,4 +1,5 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../lib/estilos.ts';
 import { archivarPersonaAccion, guardarPersonaAccion } from './personas.ts';
@@ -12,17 +13,20 @@ interface Props {
   inicial: Persona;
   categorias?: { id: string; nombre: string }[];   // clientes
   categoriasProveedor?: string[];                  // proveedores (lista con opción de nueva)
+  /** Desde la ficha (vista de lectura): se abre ya editando, con Cancelar, y al terminar vuelve a la vista. */
+  onTerminar?: () => void;
 }
 
 const CONDICIONES: [string, string][] = [
   ['consumidor_final', 'Consumidor final'], ['responsable_inscripto', 'Responsable inscripto'], ['monotributo', 'Monotributo'], ['exento', 'Exento'],
 ];
 
-export default function FormularioPersona({ tipo, inicial, categorias = [], categoriasProveedor = [] }: Props) {
+export default function FormularioPersona({ tipo, inicial, categorias = [], categoriasProveedor = [], onTerminar }: Props) {
+  const router = useRouter();
   const [d, setD] = useState(inicial);
   // Una ficha existente se ve primero tal cual está; la casilla «Modificar» habilita los campos y al destildarla se vuelve a lo último guardado.
   const esNueva = inicial.id === null;
-  const [editando, setEditando] = useState(esNueva);
+  const [editando, setEditando] = useState(esNueva || !!onTerminar);
   const [base, setBase] = useState(inicial);
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
@@ -43,6 +47,7 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
       const r = await guardarPersonaAccion(tipo, d.id, datos);
       if (r?.error) { setMsg(r.error); return; }
       setBase(d);
+      if (onTerminar) { router.refresh(); onTerminar(); return; }
       if (!esNueva) setEditando(false);
     });
   const archivar = () =>
@@ -59,7 +64,7 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
   return (
     <div style={{ ...tarjeta, maxWidth: 720 }}>
       {msg && <div style={estiloError}>{msg}</div>}
-      {!esNueva && (
+      {!esNueva && !onTerminar && (
         <label style={{ display: 'inline-block', marginBottom: 10, fontSize: 14, fontWeight: 600 }}>
           <input type="checkbox" checked={editando} disabled={pend} onChange={(e) => alternarEdicion(e.target.checked)} /> Modificar
         </label>
@@ -103,7 +108,8 @@ export default function FormularioPersona({ tipo, inicial, categorias = [], cate
       {editando && (
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
-          {d.id && !d.esConsumidorFinal && (
+          {onTerminar && <button type="button" style={botonSecundario} disabled={pend} onClick={onTerminar}>Cancelar</button>}
+          {!onTerminar && d.id && !d.esConsumidorFinal && (
             <button type="button" style={botonSecundario} disabled={pend} onClick={archivar}>{d.activo ? 'Archivar' : 'Restaurar'}</button>
           )}
         </div>

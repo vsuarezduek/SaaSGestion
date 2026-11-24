@@ -22,14 +22,17 @@ interface Props {
   saldoAFavor?: string | null;
   /** Solo proveedores: cajas abiertas desde las que se puede pagar (órdenes de pago). */
   cajasPago?: { id: string; nombre: string }[];
+  /** Desde los botones de la ficha (?abrir=…): abre de entrada el formulario de recibo, devolución u orden de pago. */
+  abrir?: 'recibo' | 'devolucion' | 'orden' | null;
 }
 
-export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios, saldoAFavor, cajasPago }: Props) {
-  const [abierta, setAbierta] = useState(false);
+export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, medios, saldoAFavor, cajasPago, abrir = null }: Props) {
+  // Como el «Historial» del prototipo: abierto de entrada, con el saldo después de cada movimiento.
+  const [abierta, setAbierta] = useState(true);
   const [f, setF] = useState({ tipo: 'ajuste', importe: '', concepto: '' });
-  const [rec, setRec] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '', ventaId: null as string | null });
-  const [dev, setDev] = useState({ abierto: false, importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '' });
-  const [ord, setOrd] = useState({ abierto: false, importe: '', cajaId: cajasPago?.[0]?.id ?? '', nota: '', compraId: null as string | null });
+  const [rec, setRec] = useState({ abierto: abrir === 'recibo', importe: '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '', ventaId: null as string | null });
+  const [dev, setDev] = useState({ abierto: abrir === 'devolucion' && !!saldoAFavor, importe: abrir === 'devolucion' ? saldoAFavor ?? '' : '', medioId: medios?.[0]?.id ?? '', cajaId: medios?.[0]?.cajas[0]?.id ?? '', nota: '' });
+  const [ord, setOrd] = useState({ abierto: abrir === 'orden', importe: '', cajaId: cajasPago?.[0]?.id ?? '', nota: '', compraId: null as string | null });
   const [claveOrd, setClaveOrd] = useState(() => crypto.randomUUID());
   const [claveDev, setClaveDev] = useState(() => crypto.randomUUID());
   const [clave, setClave] = useState(() => crypto.randomUUID());
@@ -85,9 +88,9 @@ export default function CuentaCorriente({ tipo, id, saldo, filas, puedeOperar, m
   const conOrdenes = tipo === 'proveedor' && puedeOperar && !!cajasPago && cajasPago.length > 0;
   const conRecibos = tipo === 'cliente' && puedeOperar && !!medios && medios.length > 0;
   return (
-    <div style={tarjeta}>
-      <button type="button" style={{ ...botonSecundario, width: '100%', textAlign: 'left' }} onClick={() => setAbierta(!abierta)}>
-        {abierta ? '▾' : '▸'} Cuenta corriente · saldo {saldo}
+    <div style={tarjeta} id="cc">
+      <button type="button" aria-expanded={abierta} style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', fontWeight: 700, color: '#1c9764', fontSize: 16, textAlign: 'left' }} onClick={() => setAbierta(!abierta)}>
+        {abierta ? '▾' : '▸'} Historial · saldo {saldo}
       </button>
       {tipo === 'cliente' && puedeOperar && medios && medios.length === 0 && <p style={{ fontSize: 12, color: '#5c6d66' }}>Para registrar un recibo hace falta una caja abierta con un medio de pago habilitado.</p>}
       {tipo === 'proveedor' && puedeOperar && cajasPago && cajasPago.length === 0 && <p style={{ fontSize: 12, color: '#5c6d66' }}>Para registrar una orden de pago hace falta una caja abierta.</p>}
