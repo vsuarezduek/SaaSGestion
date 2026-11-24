@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from 'react';
 import { aCentavos, calcularCompra, deCentavos, formatearCantidad, formatearPesos, impuestoDeTransaccion, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
+import ModalNuevoProveedor from '../../ModalNuevoProveedor.tsx';
 import { agregarCategoriaAccion, buscarProductosCompraAccion, buscarProveedoresAccion, cerrarCompraAccion, faltantesAccion, guardarCompraAbiertaAccion } from '../acciones.ts';
 
 interface Proveedor { id: string; nombre: string; saldo: string }
@@ -12,6 +13,10 @@ interface Props {
   categorias: string[];
   cajas: { id: string; nombre: string; impuesto: number }[];
   proveedorInicial: Proveedor | null;
+  /** Tipo de comprobante elegido en «Nueva compra». */
+  comprobanteInicial?: string;
+  /** Categorías de proveedor, para dar de alta uno en la ventana emergente. */
+  categoriasProveedor: string[];
   /** Compra cerrada que se está corrigiendo: al cerrar, esa se anula y la nueva la reemplaza. */
   edicion?: {
     compraId: string; numero: number;
@@ -31,7 +36,7 @@ const MODOS: [string, string][] = [['costo_y_precio', 'Actualizar costo y manten
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaCompra({ categorias, cajas, proveedorInicial, edicion, abierta, faltantes, puedeAgregarCategorias }: Props) {
+export default function NuevaCompra({ categorias, cajas, proveedorInicial, comprobanteInicial, categoriasProveedor, edicion, abierta, faltantes, puedeAgregarCategorias }: Props) {
   const ini = edicion?.datos ?? abierta?.datos;
   const abiertaRef = useRef<{ id: string | null; version: number }>({ id: abierta?.id ?? null, version: abierta?.version ?? 1 });
   const router = useRouter();
@@ -39,9 +44,12 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
   const [proveedor, setProveedor] = useState<Proveedor | null>(proveedorInicial);
   const [busquedaProv, setBusquedaProv] = useState('');
   const [resultadosProv, setResultadosProv] = useState<Proveedor[]>([]);
+  const [provSinResultados, setProvSinResultados] = useState(false);
+  const [modalProv, setModalProv] = useState<string | null>(null);
+  const turnoProv = useRef(0);
   const [listaCategorias, setListaCategorias] = useState(categorias);
   const [categoria, setCategoria] = useState(ini?.categoria ?? categorias[0] ?? '');
-  const [comprobante, setComprobante] = useState(ini?.comprobante ?? 'remito');
+  const [comprobante, setComprobante] = useState(ini?.comprobante ?? comprobanteInicial ?? 'remito');
   const [nroComprobante, setNroComprobante] = useState(ini?.nroComprobante ?? '');
   const [fecha, setFecha] = useState(ini?.fecha ?? '');
   const [descTotal, setDescTotal] = useState(ini?.descTotal ?? '0');
@@ -80,7 +88,11 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
 
   const buscarProveedor = async (q: string) => {
     setBusquedaProv(q);
-    setResultadosProv(q.trim() ? await buscarProveedoresAccion(q) : []);
+    const mio = ++turnoProv.current;
+    const r = q.trim() ? await buscarProveedoresAccion(q) : [];
+    if (mio !== turnoProv.current) return; // llegó una búsqueda más nueva
+    setResultadosProv(r);
+    setProvSinResultados(q.trim() !== '' && r.length === 0);
   };
   const buscarProducto = async (q: string) => {
     setBusquedaProd(q);
@@ -167,6 +179,11 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
             {resultadosProv.length > 0 && (
               <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, background: '#fff', border: '1px solid #d3e6de', borderRadius: 8 }}>
                 {resultadosProv.map((p) => (<div key={p.id} style={{ padding: 8, cursor: 'pointer' }} onClick={() => { setProveedor(p); setResultadosProv([]); setBusquedaProv(''); }}>{p.nombre}</div>))}
+              </div>
+            )}
+            {provSinResultados && (
+              <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, background: '#fff', border: '1px solid #d3e6de', borderRadius: 8 }}>
+                <div style={{ padding: 8, cursor: 'pointer', color: '#1c9764', fontWeight: 600 }} onClick={() => { setModalProv(busquedaProv); setProvSinResultados(false); }}>+ Crear proveedor «{busquedaProv.trim()}»</div>
               </div>
             )}
             {proveedor && deuda > 0 && <div style={{ color: '#b4571a', fontSize: 13 }}>Le debemos a este proveedor {$(deuda)}</div>}
@@ -267,6 +284,13 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, edici
           <button type="button" style={botonSecundario} disabled={pend} onClick={() => router.push(edicion ? `/compras/${edicion.compraId}` : '/compras')}>{edicion ? 'Cancelar edición' : 'Cancelar'}</button>
         </div>
       </div>
+      {modalProv !== null && (
+        <ModalNuevoProveedor
+          nombreInicial={modalProv} categorias={categoriasProveedor}
+          onCerrar={() => setModalProv(null)}
+          onCreado={(p) => { setModalProv(null); setProveedor({ id: p.id, nombre: p.nombre, saldo: '0' }); setBusquedaProv(''); }}
+        />
+      )}
     </>
   );
 }
