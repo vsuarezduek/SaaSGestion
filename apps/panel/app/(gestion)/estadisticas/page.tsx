@@ -7,6 +7,7 @@ import { estadisticasDe, periodoDe, type OrdenProductos } from '../../../lib/est
 import { sesionActual } from '../../../lib/sesion.ts';
 import BotonPng from './BotonPng.tsx';
 import Pestanas from './Pestanas.tsx';
+import Controles from './Controles.tsx';
 import Grafico, { valorTexto } from './Grafico.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -30,13 +31,13 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   return (
     <main style={{ ...pagina, maxWidth: 760 }}>
       <h1 style={{ marginTop: 0 }}>Estadísticas</h1>
-      <Pestanas activa="graficos" />
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+      <div className="no-imprimir"><Pestanas activa="graficos" /></div>
+      <div className="no-imprimir" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {OPCIONES.map(([clave, texto]) => (
           <Link key={clave} href={`/estadisticas?p=${clave}`} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 10px', ...((q.p ?? 'mes') === clave && !q.desde ? { background: '#1c9764', color: '#fff' } : {}) }}>{texto}</Link>
         ))}
       </div>
-      <form method="get" style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
+      <form method="get" className="no-imprimir" style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
         <label style={{ fontSize: 12, color: '#5c6d66' }}>Desde<input type="date" name="desde" defaultValue={q.desde} style={{ ...campo, width: 'auto' }} /></label>
         <label style={{ fontSize: 12, color: '#5c6d66' }}>Hasta<input type="date" name="hasta" defaultValue={q.hasta} style={{ ...campo, width: 'auto' }} /></label>
         <label style={{ fontSize: 12, color: '#5c6d66' }}>Top productos por
@@ -55,23 +56,23 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
               <div key={t} style={{ ...tarjeta, marginBottom: 0, padding: 12 }}><div style={{ fontSize: 12, color: '#5c6d66' }}>{t}</div><div style={{ fontSize: 18, fontWeight: 700 }}>{v}</div></div>
             ))}
           </div>
-          <p style={{ display: 'flex', gap: 8 }}>
-            <a href={`/estadisticas/csv?${params}`} style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar todo (CSV)</a>
-          </p>
+          <Controles csv={`/estadisticas/csv?${params}`} />
           {datos.series.map((s) => (
-            <details key={s.clave} open={['tiempo', 'medio', 'productos'].includes(s.clave)} style={tarjeta}>
+            <details key={s.clave} data-grafico open={['tiempo', 'medio', 'productos'].includes(s.clave)} style={tarjeta}>
               <summary style={{ fontWeight: 600, cursor: 'pointer' }}>{s.titulo}</summary>
               <div style={{ marginTop: 10 }}>
                 <Grafico serie={s} />
                 {s.nota && <p style={{ fontSize: 12, color: '#5c6d66', margin: '6px 0 0' }}>{s.nota}</p>}
-                <details style={{ marginTop: 8 }}>
+                <details className="no-imprimir" style={{ marginTop: 8 }}>
                   <summary style={{ fontSize: 12, color: '#5c6d66', cursor: 'pointer' }}>Ver como tabla</summary>
                   <table style={{ width: '100%', fontSize: 13, marginTop: 6 }}>
                     <tbody>{s.puntos.map((p, i) => <tr key={i}><td>{p.etiqueta}</td><td style={{ textAlign: 'right' }}>{valorTexto(p.valor, s.formato)}</td></tr>)}</tbody>
                   </table>
                 </details>
-                <a href={`/estadisticas/csv?${params}&serie=${s.clave}`} style={{ fontSize: 12 }}>CSV de este gráfico</a>
-                <BotonPng nombre={`${s.clave}-${datos.periodo.desde}_${datos.periodo.hasta}`} />
+                <span className="no-imprimir">
+                  <a href={`/estadisticas/csv?${params}&serie=${s.clave}`} style={{ fontSize: 12 }}>CSV de este gráfico</a>
+                  <BotonPng nombre={`${s.clave}-${datos.periodo.desde}_${datos.periodo.hasta}`} />
+                </span>
               </div>
             </details>
           ))}
