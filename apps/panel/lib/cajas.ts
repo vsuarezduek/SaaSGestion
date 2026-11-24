@@ -170,6 +170,39 @@ export async function movimientosDeCaja(s: SesionActiva, cajaId: string, limite 
   });
 }
 
+export interface MovimientoDeUsuario extends MovimientoCaja { caja: string; cajaId: string; usuarioId: string | null }
+
+/**
+ * «Movimientos de caja de los usuarios» de la pantalla Cajas (como el prototipo): los últimos movimientos de todas las cajas que
+ * la persona puede ver. El administrador ve los de todos y puede filtrar por usuario; los demás, solo los suyos.
+ */
+export async function movimientosDeUsuarios(s: SesionActiva, f: { usuarioId?: string | null; limite?: number } = {}): Promise<{ filas: MovimientoDeUsuario[]; hayMas: boolean }> {
+  exigir(s, 'cajas');
+  const limite = Math.min(Math.max(f.limite ?? 15, 1), 500);
+  const filtro = s.rol !== 'administrador' ? s.usuarioId : f.usuarioId && UUID.test(f.usuarioId) ? f.usuarioId : null;
+  return conTenant(s.tenantId, async (c) => {
+    const ok = await visibles(c, s);
+    const r = await c.query(
+      `SELECT m.id::text, m.tipo, m.importe::text, m.concepto, m.fecha, u.nombre AS usuario, m.usuario_id, k.nombre AS caja, m.caja_id, m.revierte_id::text,
+              m.grupo_id IS NOT NULL AS en_transferencia, m.venta_id, m.recibo_id, m.devolucion_id, m.compra_id, m.orden_pago_id,
+              EXISTS (SELECT 1 FROM caja_movimientos x WHERE x.revierte_id = m.id) AS revertido
+         FROM caja_movimientos m JOIN cajas k ON k.id = m.caja_id LEFT JOIN usuarios u ON u.id = m.usuario_id
+        ${filtro ? 'WHERE m.usuario_id = $1' : ''}
+        ORDER BY m.fecha DESC, m.id DESC LIMIT ${limite * 3 + 1}`,
+      filtro ? [filtro] : [],
+    );
+    // Las cajas que no puede ver se descartan acá (la regla vive en un solo lugar: puedeVerCaja).
+    const vis = r.rows.filter((x) => ok(x.caja_id));
+    return {
+      hayMas: vis.length > limite,
+      filas: vis.slice(0, limite).map((x) => ({
+        id: x.id, tipo: x.tipo, importe: x.importe, concepto: x.concepto, fecha: x.fecha, usuario: x.usuario, usuarioId: x.usuario_id, caja: x.caja, cajaId: x.caja_id,
+        revertido: x.revertido, revierteId: x.revierte_id, enTransferencia: x.en_transferencia, origen: enlaceDeOrigen(x),
+      })),
+    };
+  });
+}
+
 async function insertar(c: PoolClient, s: SesionActiva, caja: Caja, tipo: string, importe: string, concepto: string | null, extra: { grupo?: string; fecha?: string | null } = {}): Promise<string> {
   if (!caja.turnoId) throw new ErrorDeUsuario(`La caja ${caja.nombre} está cerrada`);
   const r = await c.query<{ id: string }>(

@@ -144,6 +144,8 @@ export interface FilaProducto {
   iva: string;
   activo: boolean;
   rubro: string | null;
+  /** Nombre del proveedor habitual (si tiene). */
+  proveedor: string | null;
   precios: Record<string, string>;
   stock: string;
   stockMinimo: string;
@@ -186,11 +188,12 @@ export async function listarProductos(s: SesionActiva, f: FiltroProductos = {}):
     const total = await c.query<{ n: string }>(`SELECT count(*)::text AS n FROM productos p ${donde}`, params);
     const r = await c.query<{
       id: string; codigo: string | null; nombre: string; tipo: string | null; unidad: string; costo: string; iva: string;
-      activo: boolean; rubro: string | null; precios: Record<string, string>; stock: string; stock_minimo: string;
+      activo: boolean; rubro: string | null; proveedor: string | null; precios: Record<string, string>; stock: string; stock_minimo: string;
     }>(
-      `SELECT p.id, p.codigo, p.nombre, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.activo, r.nombre AS rubro, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo,
+      `SELECT p.id, p.codigo, p.nombre, p.tipo, p.unidad, p.costo::text AS costo, p.iva::text AS iva, p.activo, r.nombre AS rubro, pv.nombre AS proveedor, ${STOCK_SQL}::text AS stock, p.stock_minimo::text AS stock_minimo,
               COALESCE((SELECT jsonb_object_agg(pp.lista_id, pp.precio::text) FROM producto_precios pp WHERE pp.producto_id = p.id), '{}'::jsonb) AS precios
          FROM productos p LEFT JOIN rubros r ON r.tenant_id = p.tenant_id AND r.id = p.rubro_id
+              LEFT JOIN proveedores pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
          ${donde} ORDER BY lower(p.nombre), p.id LIMIT ${limite}`,
       params,
     );

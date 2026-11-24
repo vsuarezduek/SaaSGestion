@@ -13,6 +13,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 ## Productos
 | Función | Estado | Nota |
 |---|---|---|
+| Pantalla Productos: buscador de entrada con resultados al escribir, acciones del prototipo, listado con filtros desplegable y ordenable | ✅ | D-040 |
 | Ficha: código, rubro/subrubros, tipo, proveedor, IVA, unidad, costo y listas de precios | ✅ | Proveedor del producto: D-024 |
 | Stock actual/ideal/mínimo, libro de stock, alertas (incl. negativo) | ✅ | |
 | Disponible para venta/compra/integrar, web | ✅ | "Compuesto" = tiene receta (D-026) |
@@ -80,6 +81,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 ## Cajas
 | Función | Estado | Nota |
 |---|---|---|
+| Pantalla Cajas: lista con estado y saldo, movimientos de los usuarios (filtro por usuario) e historial de cierres desplegables | ✅ | D-040 |
 | Cajas, apertura con arqueo, cierre, dejar de cambio y traspaso | ✅ | |
 | Configurar cajas y medios de pago desde Ajustes (crear, editar, ordenar, archivar) | ✅ | Ajustes → Cajas y medios de pago (D-030) |
 | Movimientos manuales, transferencias, anulaciones, caja cerrada bloqueada | ✅ | |

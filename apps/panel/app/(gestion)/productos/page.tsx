@@ -1,21 +1,27 @@
 import Link from 'next/link';
 import { listarProductos, listarRubros, listasDePrecios, tiposDeProducto } from '../../../lib/catalogo.ts';
 import { datosExtraConValores, proveedoresParaProducto } from '../../../lib/extras.ts';
-import { boton, botonSecundario, campo, tarjeta } from '../../../lib/estilos.ts';
+import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
+import { puede, type Rol } from '../../../../../packages/seguridad/src/index.ts';
+import { Seccion } from '../Orden.tsx';
+import PantallaProductos from './PantallaProductos.tsx';
+import TablaProductos from './TablaProductos.tsx';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
-import { aCentavos, estadoStock, formatearCantidad, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
 
 export const dynamic = 'force-dynamic';
 
-type Params = { q?: string; rubro?: string; tipo?: string; estado?: string; alerta?: string; limite?: string; proveedor?: string; extra?: string; valor?: string };
+type Params = { q?: string; rubro?: string; tipo?: string; estado?: string; alerta?: string; limite?: string; proveedor?: string; extra?: string; valor?: string; listado?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<Params> }) {
   const p = await searchParams;
   const s = await sesionObligatoria();
   const limite = Math.min(Number(p.limite) || 50, 500);
   const estado = p.estado === 'archivados' || p.estado === 'todos' ? p.estado : 'activos';
+  // El listado con filtros se arma recién cuando se pide (como el prototipo: de entrada, solo el buscador).
+  const conListado = Boolean(p.listado || p.q || p.rubro || p.tipo || p.proveedor || p.extra || p.alerta || (p.estado && p.estado !== 'activos'));
+  const permiso = (x: 'descargar' | 'informes') => puede({ rol: s.rol as Rol, permisos: s.permisos, activo: true, cajasVisibles: null }, x);
   const [{ filas, total }, listas, rubros, tipos, proveedores, extras] = await Promise.all([
-    listarProductos(s, { q: p.q, rubroId: p.rubro || undefined, tipo: p.tipo || undefined, estado, limite, alerta: p.alerta === 'negativo' || p.alerta === 'bajo_minimo' ? p.alerta : undefined,
+    !conListado ? Promise.resolve({ filas: [], total: 0 }) : listarProductos(s, { q: p.q, rubroId: p.rubro || undefined, tipo: p.tipo || undefined, estado, limite, alerta: p.alerta === 'negativo' || p.alerta === 'bajo_minimo' ? p.alerta : undefined,
       proveedorId: p.proveedor || undefined, extraId: p.extra || undefined, extraValor: p.extra && p.valor ? p.valor : undefined }),
     listasDePrecios(s),
     listarRubros(s),
@@ -24,19 +30,13 @@ export default async function Productos({ searchParams }: { searchParams: Promis
     datosExtraConValores(s),
   ]);
   const extraElegido = extras.find((x) => x.id === p.extra);
-  const celda = { padding: '6px 8px', borderBottom: '1px solid #d3e6de', textAlign: 'left' as const, fontSize: 14 };
   return (
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontFamily: 'Georgia, serif' }}>Productos</h1>
-        <Link href="/productos/nuevo" style={{ ...boton, textDecoration: 'none' }}>+ Producto</Link>
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        <Link href="/comprobante/listas" style={{ ...botonSecundario, textDecoration: 'none' }}>Descargar listas de precios</Link>
-        <a href="/productos/exportar" style={{ ...botonSecundario, textDecoration: 'none' }}>Exportar CSV</a>
-        <Link href="/ajustes/importar" style={{ ...botonSecundario, textDecoration: 'none' }}>Importar</Link>
-      </div>
-      <form method="get" style={{ ...tarjeta, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <h1 style={{ fontFamily: 'Georgia, serif' }}>Productos</h1>
+      <PantallaProductos tipos={tipos} lista={listas[0] ? { id: listas[0].id, nombre: listas[0].nombre } : null} puedeDescargar={permiso('descargar')} puedeMasiva={s.rol === 'administrador' || s.permisos.includes('ajustes')} />
+      <Seccion titulo={conListado ? `Listado con filtros (${total})` : 'Listado con filtros'} abiertoInicial={conListado} estilo={{ ...tarjeta, overflowX: 'auto' }}>
+      <form method="get" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <input type="hidden" name="listado" value="1" />
         <input name="q" defaultValue={p.q ?? ''} placeholder="Buscar por nombre, código o tipo" style={{ ...campo, flex: '2 1 220px', marginTop: 0 }} />
         <select name="rubro" defaultValue={p.rubro ?? ''} style={{ ...campo, flex: '1 1 160px', marginTop: 0 }}>
           <option value="">Todos los rubros</option>
@@ -74,37 +74,25 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         <select name="alerta" defaultValue={p.alerta ?? ''} style={{ ...campo, flex: '1 1 140px', marginTop: 0 }}>
           <option value="">Todo el stock</option><option value="negativo">Stock negativo</option><option value="bajo_minimo">Bajo el mínimo</option>
         </select>
-        <button type="submit" style={boton}>Buscar</button>
+        <button type="submit" style={boton}>{conListado ? 'Filtrar' : 'Ver listado'}</button>
       </form>
-      <div style={{ ...tarjeta, overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={celda}>Código</th><th style={celda}>Producto</th><th style={celda}>Rubro</th><th style={celda}>Stock</th><th style={celda}>Costo</th>
-              {listas.map((l) => (<th key={l.id} style={celda}>{l.nombre}</th>))}
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f) => (
-              <tr key={f.id} style={{ opacity: f.activo ? 1 : 0.55 }}>
-                <td style={celda}>{f.codigo ?? ''}</td>
-                <td style={celda}><Link href={`/productos/${f.id}`} style={{ color: '#1c9764' }}>{f.nombre}</Link></td>
-                <td style={celda}>{f.rubro ?? ''}</td>
-                <td style={{ ...celda, fontWeight: 600, color: estadoStock(f.stock, f.stockMinimo) === 'negativo' ? '#b4571a' : estadoStock(f.stock, f.stockMinimo) === 'bajo_minimo' ? '#8a6d00' : 'inherit' }}>
-                  {formatearCantidad(f.stock)}{estadoStock(f.stock, f.stockMinimo) !== 'normal' ? ' ⚠' : ''}
-                </td>
-                <td style={celda}>{formatearPesos(aCentavos(f.costo))}</td>
-                {listas.map((l) => (<td key={l.id} style={celda}>{f.precios[l.id] ? formatearPesos(aCentavos(f.precios[l.id]!)) : '—'}</td>))}
-              </tr>
-            ))}
-            {filas.length === 0 && (<tr><td style={celda} colSpan={5 + listas.length}>No hay productos con ese filtro.</td></tr>)}
-          </tbody>
-        </table>
+      {conListado && (
+      <div>
+        <div style={{ fontSize: 12, color: '#5c6d66', marginBottom: 4 }}>Click en una columna para ordenar lo que se ve.</div>
+        <TablaProductos filas={filas} listas={listas.map((l) => ({ id: l.id, nombre: l.nombre }))} />
         <p style={{ fontSize: 13, color: '#5c6d66' }}>Mostrando {filas.length} de {total}.</p>
         {filas.length < total && (
-          <Link href={{ pathname: '/productos', query: { ...p, limite: String(limite + 50) } }} style={{ color: '#1c9764' }}>Mostrar más</Link>
+          <Link href={{ pathname: '/productos', query: { ...p, listado: '1', limite: String(limite + 50) } }} style={{ color: '#1c9764' }}>Mostrar más</Link>
         )}
       </div>
+      )}
+      </Seccion>
+      {permiso('informes') && (
+        <div style={tarjeta}>
+          <Link href="/estadisticas/productos" style={{ color: '#1c9764', fontWeight: 700, textDecoration: 'none' }}>Informes de productos →</Link>
+          <div style={{ fontSize: 12, color: '#5c6d66' }}>Ranking de productos, productos por proveedor y productos filtrados, con CSV.</div>
+        </div>
+      )}
     </main>
   );
 }

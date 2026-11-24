@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearComercio, ErrorDeUsuario, type SesionActiva } from '../lib/auth.ts';
 import {
-  abrirCaja, cerrarCaja, guardarCaja, historialDeCierres, listarCajas, movimientoManual, movimientosDeCaja, obtenerCaja,
+  abrirCaja, cerrarCaja, guardarCaja, historialDeCierres, listarCajas, movimientoManual, movimientosDeCaja, movimientosDeUsuarios, obtenerCaja,
   resumenDelTurno, revertirMovimientoCaja, transferir,
 } from '../lib/cajas.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
@@ -169,4 +169,32 @@ test('valida la configuración de la caja y no repite nombres', async () => {
   await assert.rejects(guardarCaja(A, null, { nombre: 'Tipo raro', tipo: 'otra', impuestoTransaccion: 0 }), ErrorDeUsuario);
   await nueva(A, 'Mercado Pago', 'digital', 0.6);
   await assert.rejects(nueva(A, 'mercado pago', 'digital'), ErrorDeUsuario);
+});
+
+test('pantalla Cajas: el administrador ve los movimientos de todos y filtra por usuario; el resto solo los suyos y de sus cajas', async () => {
+  const propia = await nueva(A, 'Mostrador pantalla');
+  const ajena = await nueva(A, 'Caja ajena pantalla');
+  const u = await conTenant(A.tenantId, (c) =>
+    c.query<{ id: string }>(
+      "INSERT INTO usuarios (tenant_id, email, nombre, rol, cajas_visibles) VALUES (app.tenant_id(), 'vendedora@ejemplo.test', 'Vendedora', 'atencion', $1) RETURNING id", [[propia]]));
+  const vendedora: SesionActiva = { ...A, usuarioId: u.rows[0]!.id, nombre: 'Vendedora', email: 'vendedora@ejemplo.test', rol: 'atencion' };
+  await abrirCaja(A, propia, { contado: '0' });
+  await abrirCaja(A, ajena, { contado: '0' });
+  await movimientoManual(A, propia, ingreso('11', 'admin en mostrador'));
+  await movimientoManual(A, ajena, ingreso('12', 'admin en ajena'));
+  await movimientoManual(vendedora, propia, ingreso('13', 'vendedora en mostrador'));
+
+  const todos = (await movimientosDeUsuarios(A, { limite: 50 })).filas.map((m) => m.concepto);
+  for (const c of ['admin en mostrador', 'admin en ajena', 'vendedora en mostrador']) assert.ok(todos.includes(c), c);
+  const filtrados = (await movimientosDeUsuarios(A, { usuarioId: vendedora.usuarioId, limite: 50 })).filas;
+  assert.deepEqual(filtrados.map((m) => m.concepto), ['vendedora en mostrador']);
+  assert.equal(filtrados[0]!.caja, 'Mostrador pantalla');
+
+  // La vendedora no puede ver los de otros aunque pida el filtro de otro usuario.
+  const suyos = (await movimientosDeUsuarios(vendedora, { usuarioId: A.usuarioId, limite: 50 })).filas.map((m) => m.concepto);
+  assert.deepEqual(suyos, ['vendedora en mostrador']);
+  // Ni otro comercio.
+  assert.equal((await movimientosDeUsuarios(B, { limite: 50 })).filas.some((m) => m.concepto?.includes('mostrador')), false);
+  // De a pocos: avisa que hay más.
+  assert.equal((await movimientosDeUsuarios(A, { limite: 1 })).hayMas, true);
 });
