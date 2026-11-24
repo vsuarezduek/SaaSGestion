@@ -8,10 +8,10 @@ import { abrirCaja, cerrarCaja, guardarCaja, obtenerCaja } from '../lib/cajas.ts
 import { archivarProducto, guardarProducto, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
 import { ErrorDePermiso } from '../lib/permisos.ts';
-import { guardarCategoria, guardarCliente, obtenerCliente } from '../lib/personas.ts';
+import { guardarCategoria, guardarCliente, listarClientes, obtenerCliente, ultimosClientesConOperaciones } from '../lib/personas.ts';
 import { registrarStock } from '../lib/stock.ts';
 import {
-  anularVenta, buscarClientesParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago, listarVentas, obtenerVenta,
+  anularVenta, buscarClientesParaVenta, clienteParaVenta, buscarProductosParaVenta, cerrarVenta, guardarMedioDePago, listarVentas, obtenerVenta,
 } from '../lib/ventas.ts';
 
 const sufijo = Date.now().toString(36);
@@ -313,4 +313,33 @@ test('descuento por total final reparte el IVA de una factura sobre el total que
   const v = await obtenerVenta(A, r.id);
   assert.equal(v?.total, '605.00');
   assert.equal(v?.ivaIncluido, '105.00'); // 605 × 21 ÷ 121
+});
+
+// ───────── Pantalla Clientes y alta desde la venta (correcciones de noviembre) ─────────
+test('Clientes sin búsqueda: últimos 10 con operaciones, uno por cliente y del otro comercio nada', async () => {
+  const otro = await guardarCliente(A, null, { telefono: '', email: '', domicilio: '', localidad: '', cuit: '', condicionIva: 'consumidor_final', nombre: 'Cliente reciente', categoriaId: null });
+  await venta(A, { clienteId: otro });
+  const v2 = await venta(A, { clienteId: otro });
+  const u = await ultimosClientesConOperaciones(A);
+  assert.ok(u.length <= 10);
+  assert.equal(u[0]!.clienteId, otro);                       // el más reciente primero
+  assert.equal(u[0]!.ventaId, v2.id);                        // con su última venta
+  assert.equal(u.filter((x) => x.clienteId === otro).length, 1); // sin repetir clientes
+  assert.equal((await ultimosClientesConOperaciones(B)).some((x) => x.clienteId === otro), false);
+});
+
+test('el buscador de Clientes también encuentra por mail', async () => {
+  await guardarCliente(A, null, { telefono: '', email: 'buscame@ejemplo.test', domicilio: '', localidad: '', cuit: '', condicionIva: 'consumidor_final', nombre: 'Por Mail', categoriaId: null });
+  assert.equal((await listarClientes(A, { q: 'buscame@' })).filas.some((f) => f.nombre === 'Por Mail'), true);
+  assert.equal((await listarClientes(B, { q: 'buscame@' })).filas.length, 0);
+});
+
+test('un cliente creado en el momento queda listo para vender, con la cuenta corriente de su categoría', async () => {
+  const cat = await guardarCategoria(A, null, { nombre: 'Mayoristas al paso', listaId: null, cuentaCorriente: true, descuento: 5, ventaACosto: false });
+  const id = await guardarCliente(A, null, { telefono: '', email: '', domicilio: '', localidad: '', cuit: '', condicionIva: 'consumidor_final', nombre: 'Nuevo en mostrador', categoriaId: cat });
+  const c = await clienteParaVenta(A, id);
+  assert.equal(c?.nombre, 'Nuevo en mostrador');
+  assert.equal(c?.cuentaCorriente, true);
+  assert.equal(c?.descuento, 5);
+  assert.equal(await clienteParaVenta(B, id), null);
 });
