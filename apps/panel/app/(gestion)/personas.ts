@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ErrorDeUsuario } from '../../lib/auth.ts';
-import { archivarCliente, archivarProveedor, guardarCategoria, guardarCliente, guardarProveedor, listarClientes, registrarMovimiento, revertirMovimiento, type Estado, type FilaCliente } from '../../lib/personas.ts';
+import { archivarCliente, archivarProveedor, guardarCategoria, guardarCliente, guardarProveedor, listarClientes, listarProveedores, registrarMovimiento, revertirMovimiento, type Estado, type FilaCliente, type FilaProveedor } from '../../lib/personas.ts';
 import { clienteParaVenta, type ClienteParaVenta } from '../../lib/ventas.ts';
 import { ErrorDePermiso } from '../../lib/permisos.ts';
 import { sesionObligatoria } from '../../lib/sesion.ts';
@@ -79,4 +79,24 @@ export async function buscarClientesAccion(q: string): Promise<FilaCliente[]> {
 /** Listado completo de clientes (se pide recién al desplegarlo). */
 export async function listadoClientesAccion(estado: Estado): Promise<{ filas: FilaCliente[]; total: number }> {
   return listarClientes(await sesionObligatoria(), { estado, limite: 500 });
+}
+
+/** Alta rápida de un proveedor desde una ventana emergente (Compras o Proveedores). */
+export async function crearProveedorAccion(datos: unknown): Promise<{ error?: string; id?: string }> {
+  const s = await sesionObligatoria();
+  let id = '';
+  const r = await intentar(async () => { id = await guardarProveedor(s, null, datos); });
+  if (r.error) return r;
+  revalidatePath('/proveedores');
+  return { id };
+}
+
+/** Buscador de la pantalla Proveedores. */
+export async function buscarProveedoresAccion(q: string): Promise<FilaProveedor[]> {
+  return (await listarProveedores(await sesionObligatoria(), { q, limite: 40 })).filas;
+}
+
+/** Listado completo de proveedores (se pide recién al desplegarlo). */
+export async function listadoProveedoresAccion(estado: Estado): Promise<{ filas: FilaProveedor[]; total: number }> {
+  return listarProveedores(await sesionObligatoria(), { estado, limite: 500 });
 }

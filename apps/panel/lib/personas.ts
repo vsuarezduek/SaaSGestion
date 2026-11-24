@@ -205,7 +205,10 @@ export async function archivarCliente(s: SesionActiva, id: string, activo: boole
 }
 
 // ───────── Proveedores ─────────
-export interface FilaProveedor { id: string; nombre: string; contacto: string | null; categoria: string | null; telefono: string | null; activo: boolean; saldo: string }
+export interface FilaProveedor {
+  id: string; nombre: string; contacto: string | null; categoria: string | null; telefono: string | null;
+  email: string | null; domicilio: string | null; localidad: string | null; cuit: string | null; activo: boolean; saldo: string;
+}
 
 export async function listarProveedores(s: SesionActiva, f: { q?: string; estado?: Estado; limite?: number } = {}): Promise<{ filas: FilaProveedor[]; total: number }> {
   exigir(s, 'proveedores');
@@ -213,18 +216,37 @@ export async function listarProveedores(s: SesionActiva, f: { q?: string; estado
   const cond: string[] = [];
   if ((f.estado ?? 'activos') === 'activos') cond.push('p.activo');
   if (f.estado === 'archivados') cond.push('NOT p.activo');
-  cond.push(...buscar(f.q, "p.nombre || ' ' || coalesce(p.contacto,'') || ' ' || coalesce(p.categoria,'') || ' ' || coalesce(p.cuit,'')", params));
+  cond.push(...buscar(f.q, "p.nombre || ' ' || coalesce(p.contacto,'') || ' ' || coalesce(p.categoria,'') || ' ' || coalesce(p.cuit,'') || ' ' || coalesce(p.telefono,'') || ' ' || coalesce(p.email::text,'')", params));
   const donde = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-  const limite = Math.min(Math.max(f.limite ?? 50, 1), 500);
+  const limite = Math.min(Math.max(f.limite ?? 50, 1), 5000);
   return conTenant(s.tenantId, async (c) => {
     const total = await c.query<{ n: string }>(`SELECT count(*)::text AS n FROM proveedores p ${donde}`, params);
     const r = await c.query(
-      `SELECT p.id, p.nombre, p.contacto, p.categoria, p.telefono, p.activo,
+      `SELECT p.id, p.nombre, p.contacto, p.categoria, p.telefono, p.email::text AS email, p.domicilio, p.localidad, p.cuit, p.activo,
               COALESCE((SELECT sum(m.importe) FROM cuenta_corriente_movimientos m WHERE m.proveedor_id = p.id), 0)::text AS saldo
          FROM proveedores p ${donde} ORDER BY lower(p.nombre), p.id LIMIT ${limite}`,
       params,
     );
     return { total: Number(total.rows[0]!.n), filas: r.rows };
+  });
+}
+
+export interface UltimoProveedor { proveedorId: string; nombre: string; compraId: string; numero: number; fecha: Date; comprobante: string; total: string }
+
+/** Pantalla Proveedores sin búsqueda: los últimos 10 proveedores con compras, con su última compra (como el prototipo). */
+export async function ultimosProveedoresConOperaciones(s: SesionActiva): Promise<UltimoProveedor[]> {
+  exigir(s, 'proveedores');
+  return conTenant(s.tenantId, async (c) => {
+    const r = await c.query(
+      `SELECT DISTINCT ON (k.proveedor_id) k.proveedor_id, p.nombre, k.id, k.numero, k.fecha, k.comprobante, k.total::text AS total
+         FROM (SELECT id, numero, fecha, proveedor_id, comprobante, total FROM compras WHERE estado <> 'anulada' ORDER BY numero DESC LIMIT 300) k
+         JOIN proveedores p ON p.id = k.proveedor_id
+        ORDER BY k.proveedor_id, k.numero DESC`,
+    );
+    return r.rows
+      .map((x) => ({ proveedorId: x.proveedor_id, nombre: x.nombre, compraId: x.id, numero: x.numero, fecha: x.fecha, comprobante: x.comprobante, total: x.total }))
+      .sort((a, b) => b.numero - a.numero)
+      .slice(0, 10);
   });
 }
 
