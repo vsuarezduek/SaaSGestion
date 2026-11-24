@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ErrorDeUsuario } from '../../lib/auth.ts';
-import { archivarCliente, archivarProveedor, guardarCategoria, guardarCliente, guardarProveedor, registrarMovimiento, revertirMovimiento } from '../../lib/personas.ts';
+import { archivarCliente, archivarProveedor, guardarCategoria, guardarCliente, guardarProveedor, listarClientes, registrarMovimiento, revertirMovimiento, type Estado, type FilaCliente } from '../../lib/personas.ts';
+import { clienteParaVenta, type ClienteParaVenta } from '../../lib/ventas.ts';
 import { ErrorDePermiso } from '../../lib/permisos.ts';
 import { sesionObligatoria } from '../../lib/sesion.ts';
 
@@ -54,4 +55,28 @@ export async function guardarCategoriaAccion(id: string | null, datos: unknown):
   const r = await intentar(() => guardarCategoria(s, id, datos));
   revalidatePath('/clientes/categorias');
   return r;
+}
+
+/**
+ * Alta rápida de un cliente desde una ventana emergente (Ventas o Clientes), sin salir de la pantalla.
+ * Devuelve el id y, si quien lo crea puede vender, los datos que la venta necesita (lista, descuento, cuenta corriente).
+ */
+export async function crearClienteAccion(datos: unknown): Promise<{ error?: string; id?: string; cliente?: ClienteParaVenta | null }> {
+  const s = await sesionObligatoria();
+  let id = '';
+  const r = await intentar(async () => { id = await guardarCliente(s, null, datos); });
+  if (r.error) return r;
+  revalidatePath('/clientes');
+  const cliente = await clienteParaVenta(s, id).catch(() => null);
+  return { id, cliente };
+}
+
+/** Buscador de la pantalla Clientes: resultados mientras se escribe. */
+export async function buscarClientesAccion(q: string): Promise<FilaCliente[]> {
+  return (await listarClientes(await sesionObligatoria(), { q, limite: 40 })).filas;
+}
+
+/** Listado completo de clientes (se pide recién al desplegarlo). */
+export async function listadoClientesAccion(estado: Estado): Promise<{ filas: FilaCliente[]; total: number }> {
+  return listarClientes(await sesionObligatoria(), { estado, limite: 500 });
 }
