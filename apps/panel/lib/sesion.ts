@@ -1,13 +1,18 @@
 // Utilidades de sesión que usan Next (cookies y encabezados). La lógica está en auth.ts.
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { sesionDesdeCookie, type SesionActiva } from './auth.ts';
 
 export const COOKIE_SESION = 'sg_sesion';
 
-export async function sesionActual(): Promise<SesionActiva | null> {
+/**
+ * La sesión se consulta una sola vez por pedido: el menú (layout) y la página la comparten.
+ * Antes cada uno iba a la base por su cuenta.
+ */
+export const sesionActual = cache(async (): Promise<SesionActiva | null> => {
   const c = await cookies();
   return sesionDesdeCookie(c.get(COOKIE_SESION)?.value);
-}
+});
 
 /** IP del visitante según Vercel (primer valor de x-forwarded-for). */
 export function ipDe(h: Headers): string {
