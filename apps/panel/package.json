@@ -2,7 +2,9 @@
   "name": "@saasgestion/panel",
   "version": "0.0.1",
   "private": true,
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,10 +16,11 @@
   },
   "dependencies": {
     "next": "^15.1.0",
+    "pdf-lib": "1.17.1",
     "pg": "^8.13.0",
-    "zod": "^3.23.8",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

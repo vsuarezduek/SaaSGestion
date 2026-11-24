@@ -5,7 +5,8 @@ import { cuerpoDeComprobante, type ComprobanteParaMail } from './comprobanteMail
 import { descifrar, cifrar } from './correoCifrado.ts';
 import { ErrorDeCorreo, enviarMensaje, revocar, tokenDeAcceso, type Fetch, type ProveedorCorreo } from './correoOauth.ts';
 import { conTenant } from './db.ts';
-import { obtenerEmpresa } from './empresa.ts';
+import { obtenerEmpresa, obtenerLogo } from './empresa.ts';
+import { pdfDeComprobante } from './comprobantePdf.ts';
 import { ETIQUETAS_COMPROBANTE } from './etiquetas.ts';
 import { esMailValido } from './mime.ts';
 import { exigir } from './permisos.ts';
@@ -61,6 +62,22 @@ export async function enviosRecientes(s: SesionActiva, limite = 15): Promise<Env
   });
 }
 
+/** En las facturas, neto gravado e IVA por alícuota (los importes ya incluyen el IVA), como el comprobante impreso. */
+function ivaDetallado(v: { comprobante: string; renglones: { iva: string | number; total: string; ivaIncluido: string }[] }): { etiqueta: string; valor: string }[] {
+  if (v.comprobante !== 'factura_a' && v.comprobante !== 'factura_b') return [];
+  const por = new Map<number, { neto: number; iva: number }>();
+  for (const r of v.renglones) {
+    const a = Number(r.iva), x = por.get(a) ?? { neto: 0, iva: 0 };
+    x.iva += aCentavos(r.ivaIncluido);
+    x.neto += aCentavos(r.total) - aCentavos(r.ivaIncluido);
+    por.set(a, x);
+  }
+  return [...por.entries()].sort((a, b) => b[0] - a[0]).flatMap(([a, x]) => [
+    { etiqueta: `Neto gravado ${String(a).replace('.', ',')}%:`, valor: formatearPesos(x.neto) },
+    { etiqueta: `IVA ${String(a).replace('.', ',')}%:`, valor: formatearPesos(x.iva) },
+  ]);
+}
+
 interface Armado { asunto: string; contenido: ComprobanteParaMail; destinoSugerido: string | null }
 
 async function armarVenta(s: SesionActiva, id: string): Promise<Armado> {
@@ -76,7 +93,7 @@ async function armarVenta(s: SesionActiva, id: string): Promise<Armado> {
       titulo, subtitulo: `${ETIQUETAS_COMPROBANTE[v.comprobante] ?? v.comprobante} · ${fechaAr(v.fecha)}${v.estado === 'anulada' ? ' · ANULADA' : ''}`,
       contraparte: { etiqueta: 'Cliente', nombre: v.cliente },
       renglones: v.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: formatearCantidad(r.cantidad), importe: $(r.total) })),
-      totales: [...(aCentavos(v.descuentoTotal) > 0 ? [{ etiqueta: 'Descuento:', valor: `−${$(v.descuentoTotal)}` }] : []), { etiqueta: esNota ? 'Total devuelto' : 'Total', valor: $(v.total) }],
+      totales: [...(aCentavos(v.descuentoTotal) > 0 ? [{ etiqueta: 'Descuento:', valor: `−${$(v.descuentoTotal)}` }] : []), ...ivaDetallado(v), { etiqueta: esNota ? 'Total devuelto' : 'Total', valor: $(v.total) }],
       nota: v.nota, saludo: `Hola${v.cliente ? ' ' + v.cliente : ''}, te mandamos el detalle de tu ${titulo.toLowerCase()}:`, cierre: 'Gracias por tu compra.',
     },
   };
@@ -112,9 +129,10 @@ export async function enviarComprobante(s: SesionActiva, e: EntradaEnvio, f: Fet
   exigir(s, e.tipo === 'venta' ? 'ventas' : 'compras');
   const para = e.para.trim().toLowerCase();
   if (!esMailValido(para)) throw new ErrorDeUsuario('El mail de destino no es válido');
-  const [armado, empresa, previo] = await Promise.all([
+  const [armado, empresa, logo, previo] = await Promise.all([
     e.tipo === 'venta' ? armarVenta(s, e.id) : armarCompra(s, e.id),
     obtenerEmpresa(s),
+    obtenerLogo(s).catch(() => null),
     conTenant(s.tenantId, async (c) => {
       const cx = await c.query<{ proveedor: ProveedorCorreo; cuenta: string; token_cifrado: string }>('SELECT proveedor, cuenta, token_cifrado FROM correo_conexion');
       const n = await c.query<{ n: string }>("SELECT count(*)::text AS n FROM correo_envios WHERE creado_en > now() - interval '1 hour'");
@@ -124,7 +142,9 @@ export async function enviarComprobante(s: SesionActiva, e: EntradaEnvio, f: Fet
   if (!previo.conexion) throw new ErrorDeUsuario('Todavía no conectaste tu casilla. Hacelo en Ajustes → Correo.');
   if (previo.enviados >= MAX_ENVIOS_POR_HORA) throw new ErrorDeUsuario('Se alcanzó el máximo de mails por hora. Probá más tarde.');
   const asunto = `${armado.asunto} - ${empresa.nombre}`;
-  const cuerpo = cuerpoDeComprobante(armado.contenido, empresa);
+  const cuerpo = cuerpoDeComprobante({ ...armado.contenido, cierre: `Te adjuntamos el comprobante en PDF. ${armado.contenido.cierre}` }, empresa);
+  // El mismo comprobante en PDF, adjunto (D-041).
+  const pdf = await pdfDeComprobante(armado.contenido, empresa, logo);
   let resultado: 'enviado' | 'error' = 'enviado';
   let detalle: string | null = null;
   let falla: unknown = null;
@@ -132,6 +152,7 @@ export async function enviarComprobante(s: SesionActiva, e: EntradaEnvio, f: Fet
     const acceso = await tokenDeAcceso(previo.conexion.proveedor, descifrar(previo.conexion.token_cifrado, s.tenantId), f);
     await enviarMensaje(previo.conexion.proveedor, acceso, {
       de: previo.conexion.cuenta, nombreDe: empresa.nombre, para, responderA: empresa.email && esMailValido(empresa.email) ? empresa.email : null, asunto, texto: cuerpo.texto, html: cuerpo.html,
+      adjuntos: [{ nombre: `${armado.asunto} - ${empresa.nombre}.pdf`, tipo: 'application/pdf', bytes: pdf }],
     }, f);
   } catch (err) {
     resultado = 'error';

@@ -1,6 +1,6 @@
 // Flujo OAuth con Google (Gmail) y Microsoft (Outlook) y envío por sus APIs, sin dependencias: solo fetch (inyectable para probar).
 // Solo se pide permiso para ENVIAR mails; no se puede leer la casilla.
-import { armarMime, type MensajeDeMail } from './mime.ts';
+import { armarMime, nombreDeArchivo, type MensajeDeMail } from './mime.ts';
 
 export type ProveedorCorreo = 'google' | 'microsoft';
 export const PROVEEDORES: ProveedorCorreo[] = ['google', 'microsoft'];
@@ -100,6 +100,7 @@ export async function enviarMensaje(p: ProveedorCorreo, acceso: string, m: Mensa
           subject: m.asunto.replace(/[\r\n]+/g, ' '), body: { contentType: 'HTML', content: m.html },
           toRecipients: [{ emailAddress: { address: m.para } }],
           ...(m.responderA ? { replyTo: [{ emailAddress: { address: m.responderA } }] } : {}),
+          ...(m.adjuntos?.length ? { attachments: m.adjuntos.map((a) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: nombreDeArchivo(a.nombre), contentType: a.tipo, contentBytes: Buffer.from(a.bytes).toString('base64') })) } : {}),
         },
         saveToSentItems: true,
       }),

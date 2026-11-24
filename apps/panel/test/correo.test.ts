@@ -98,6 +98,11 @@ test('envía una venta y una compra desde la casilla conectada y lo registra', a
   assert.match(crudo, /From: .*<yo@gmail\.com>/);
   assert.match(crudo, /To: laura@cliente\.test/);
   assert.match(crudo, /Reply-To: info@comercio-a\.test/);
+  // D-041: el comprobante va también en PDF adjunto.
+  assert.match(crudo, /Content-Type: multipart\/mixed/);
+  assert.match(crudo, /Content-Disposition: attachment; filename="Venta_N_\d+_-_[^"]+\.pdf"/);
+  const b64 = crudo.split('Content-Disposition: attachment')[1]!.split('\r\n\r\n')[1]!.split('\r\n--')[0]!.replace(/\r\n/g, '');
+  assert.equal(Buffer.from(b64, 'base64').subarray(0, 5).toString('latin1'), '%PDF-');
   const registro = await enviosRecientes(A);
   assert.deepEqual(registro.map((r) => [r.tipo, r.resultado]).sort(), [['compra', 'enviado'], ['venta', 'enviado']]);
 });
