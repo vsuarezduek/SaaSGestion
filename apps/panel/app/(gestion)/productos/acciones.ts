@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { marcarParaPedir } from '../../../lib/aPedir.ts';
-import { archivarProducto, eliminarProducto, guardarProducto } from '../../../lib/catalogo.ts';
+import { archivarProducto, eliminarProducto, guardarProducto, listarProductos, type FilaProducto } from '../../../lib/catalogo.ts';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { registrarStock, revertirStock } from '../../../lib/stock.ts';
@@ -90,4 +90,9 @@ export async function marcarParaPedirAccion(id: string, marcado: boolean): Promi
   }
   revalidatePath('/', 'layout');   // la ficha y el Inicio
   return {};
+}
+
+/** Buscador de la pantalla Productos (como el prototipo): resultados mientras se escribe, por nombre o código y tipo. */
+export async function buscarProductosAccion(q: string, tipo: string): Promise<FilaProducto[]> {
+  return (await listarProductos(await sesionObligatoria(), { q, tipo: tipo || undefined, limite: 40 })).filas;
 }
