@@ -84,6 +84,7 @@ export async function guardarCategoria(s: SesionActiva, id: string | null, entra
 // ───────── Clientes ─────────
 export interface FilaCliente {
   id: string; nombre: string; categoria: string | null; telefono: string | null; localidad: string | null;
+  email: string | null; domicilio: string | null; cuit: string | null;
   activo: boolean; esConsumidorFinal: boolean; saldo: string;
 }
 
@@ -100,14 +101,14 @@ export async function listarClientes(s: SesionActiva, f: { q?: string; estado?: 
   const cond: string[] = [];
   if ((f.estado ?? 'activos') === 'activos') cond.push('c.activo');
   if (f.estado === 'archivados') cond.push('NOT c.activo');
-  cond.push(...buscar(f.q, "c.nombre || ' ' || coalesce(c.cuit,'') || ' ' || coalesce(c.telefono,'') || ' ' || coalesce(c.localidad,'')", params));
+  cond.push(...buscar(f.q, "c.nombre || ' ' || coalesce(c.cuit,'') || ' ' || coalesce(c.telefono,'') || ' ' || coalesce(c.localidad,'') || ' ' || coalesce(c.email::text,'')", params));
   const donde = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-  const limite = Math.min(Math.max(f.limite ?? 50, 1), 500);
+  const limite = Math.min(Math.max(f.limite ?? 50, 1), 5000);
   return conTenant(s.tenantId, async (c) => {
     await asegurarConsumidorFinal(c);
     const total = await c.query<{ n: string }>(`SELECT count(*)::text AS n FROM clientes c ${donde}`, params);
     const r = await c.query(
-      `SELECT c.id, c.nombre, k.nombre AS categoria, c.telefono, c.localidad, c.activo, c.es_consumidor_final,
+      `SELECT c.id, c.nombre, k.nombre AS categoria, c.telefono, c.localidad, c.email::text AS email, c.domicilio, c.cuit, c.activo, c.es_consumidor_final,
               COALESCE((SELECT sum(m.importe) FROM cuenta_corriente_movimientos m WHERE m.cliente_id = c.id), 0)::text AS saldo
          FROM clientes c LEFT JOIN categorias_cliente k ON k.tenant_id = c.tenant_id AND k.id = c.categoria_id
          ${donde} ORDER BY lower(c.nombre), c.id LIMIT ${limite}`,
@@ -115,8 +116,28 @@ export async function listarClientes(s: SesionActiva, f: { q?: string; estado?: 
     );
     return {
       total: Number(total.rows[0]!.n),
-      filas: r.rows.map((x) => ({ id: x.id, nombre: x.nombre, categoria: x.categoria, telefono: x.telefono, localidad: x.localidad, activo: x.activo, esConsumidorFinal: x.es_consumidor_final, saldo: x.saldo })),
+      filas: r.rows.map((x) => ({ id: x.id, nombre: x.nombre, categoria: x.categoria, telefono: x.telefono, localidad: x.localidad, email: x.email, domicilio: x.domicilio, cuit: x.cuit, activo: x.activo, esConsumidorFinal: x.es_consumidor_final, saldo: x.saldo })),
     };
+  });
+}
+
+export interface UltimoCliente { clienteId: string; nombre: string; ventaId: string; numero: number; fecha: Date; comprobante: string; total: string }
+
+/** Pantalla Clientes sin búsqueda: los últimos 10 clientes con operaciones, con su última venta (como el prototipo). */
+export async function ultimosClientesConOperaciones(s: SesionActiva): Promise<UltimoCliente[]> {
+  exigir(s, 'clientes');
+  return conTenant(s.tenantId, async (c) => {
+    // Se miran las últimas ventas (no todas) y se queda la más reciente de cada cliente.
+    const r = await c.query(
+      `SELECT DISTINCT ON (v.cliente_id) v.cliente_id, c.nombre, v.id, v.numero, v.fecha, v.comprobante, v.total::text AS total
+         FROM (SELECT id, numero, fecha, cliente_id, comprobante, total FROM ventas WHERE estado <> 'anulada' ORDER BY numero DESC LIMIT 300) v
+         JOIN clientes c ON c.id = v.cliente_id
+        ORDER BY v.cliente_id, v.numero DESC`,
+    );
+    return r.rows
+      .map((x) => ({ clienteId: x.cliente_id, nombre: x.nombre, ventaId: x.id, numero: x.numero, fecha: x.fecha, comprobante: x.comprobante, total: x.total }))
+      .sort((a, b) => b.numero - a.numero)
+      .slice(0, 10);
   });
 }
 

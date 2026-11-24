@@ -33,6 +33,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Fichas, categorías de cliente (lista, cta. cte., descuento, venta a costo), archivar | ✅ | |
 | Consumidor Final | ✅ | |
+| Pantalla Clientes: buscador de entrada, alta si no encuentra, últimos 10 con operaciones, listado completo desplegable y ordenable, descargar lista | ✅ | D-038 |
 | Cuenta corriente como libro de solo agregar, saldo inicial, ajustes, reversión | ✅ | |
 | **Historial con saldo en cada movimiento** | ✅ | Cuenta corriente de cliente y proveedor |
 | Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | ✅ | D-031. Editar y Compartir en cada fila; «Eliminar» = anular desde el detalle |
@@ -50,10 +51,11 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Venta: cliente, comprobante, fecha, lista, renglones, ítem libre, descuento por renglón | ✅ | |
 | Medios de pago con cajas habilitadas y comisión; neto a cobrar | ✅ | |
 | Transferencia elige automáticamente Alias Banco (primera caja preferida del medio) | ✅ | La primera caja que se tilda en el medio es la que se propone (D-030) |
-| Cuenta corriente (solo si la categoría la permite) | ✅ | |
+| Nueva venta: buscar cliente, alta en ventana emergente si no existe, comprobante y Continuar | ✅ | D-038 |
+| Cuenta corriente (solo si la categoría la permite) | ✅ | D-038: dentro de la venta, siempre visible y deshabilitada con la explicación si el cliente no la tiene |
 | Cerrar venta atómico (caja, comisión, cta. cte., stock) e idempotente | ✅ | |
 | Actualizar precios | ✅ | |
-| Listado y detalle de venta | ✅ | |
+| Listado y detalle de venta | ✅ | D-038: «Ventas abiertas» y «Últimas 10 ventas» desplegables, columnas ordenables con un click |
 | Anular venta (movimientos inversos, con motivo) | ✅ | En el prototipo "Eliminar" |
 | **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ✅ | v43–v44. Alternador % / $ total, con el ajuste en ambas unidades (D-013 ampliada) |
 | Enter en precio/descuento salta a buscar otro producto | ✅ | |
@@ -61,7 +63,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Editar una venta cerrada | ✅ | D-020. Anula la original y crea la nueva en una sola transacción |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
-| Nota de crédito y devolución | 🟡 | D-018, D-036. Desde la venta o sin venta de origen (cliente, productos y precio a mano), con devolución a caja o cuenta corriente. Falta comprobante electrónico |
+| Nota de crédito y devolución | 🟡 | D-018, D-036, D-038. Desde la venta o sin venta de origen (tipo de comprobante «Nota de crédito» o «+ Nota de crédito» en la ficha del cliente) (cliente, productos y precio a mano), con devolución a caja o cuenta corriente. Falta comprobante electrónico |
 | PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Con la casilla conectada (Ajustes → Correo, D-032) el envío es automático, con el detalle en el cuerpo del mail; falta el PDF adjunto |
 | Facturación ARCA | ⬜ | Etapa 3 |
 

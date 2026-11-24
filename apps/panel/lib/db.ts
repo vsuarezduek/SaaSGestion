@@ -26,7 +26,13 @@ declare global {
 }
 
 export function pool(): Pool {
-  globalThis.__poolSaasGestion ??= new Pool({ connectionString: urlBase(), max: 3 });
+  globalThis.__poolSaasGestion ??= new Pool({
+    connectionString: urlBase(),
+    // Las páginas piden varias cosas en paralelo: con 3 conexiones quedaban en fila. Las conexiones ociosas se
+    // conservan 60 s para no repetir el saludo TLS con la base en cada click.
+    max: 6,
+    idleTimeoutMillis: 60_000,
+  });
   return globalThis.__poolSaasGestion;
 }
 
@@ -39,12 +45,15 @@ export async function cerrarPool(): Promise<void> {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const esUuid = (s: string): boolean => UUID.test(s);
 
-async function enTransaccion<T>(preparar: (c: PoolClient) => Promise<void>, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+/**
+ * Abre la transacción y fija rol y comercio en UNA sola ida y vuelta a la base (antes eran tres).
+ * Con la base lejos de la función cada viaje cuesta, así que se agrupan. `inicio` nunca lleva datos del usuario:
+ * solo el UUID del comercio, ya validado.
+ */
+async function enTransaccion<T>(inicio: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const cliente = await pool().connect();
   try {
-    await cliente.query('BEGIN');
-    await cliente.query('SET LOCAL ROLE app_user');
-    await preparar(cliente);
+    await cliente.query(inicio);
     const resultado = await fn(cliente);
     await cliente.query('COMMIT');
     return resultado;
@@ -63,7 +72,8 @@ async function enTransaccion<T>(preparar: (c: PoolClient) => Promise<void>, fn: 
  */
 export async function conTenant<T>(tenantId: string, fn: (cliente: PoolClient) => Promise<T>): Promise<T> {
   if (!esUuid(tenantId)) throw new Error('tenant_id inválido');
-  return enTransaccion((c) => c.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]).then(() => undefined), fn);
+  // El UUID ya está validado arriba: no hay forma de inyectar texto en la consulta.
+  return enTransaccion(`BEGIN; SET LOCAL ROLE app_user; SELECT set_config('app.tenant_id', '${tenantId.toLowerCase()}', true)`, fn);
 }
 
 /**
@@ -71,5 +81,5 @@ export async function conTenant<T>(tenantId: string, fn: (cliente: PoolClient) =
  * Corre como app_user, sin comercio fijado: solo puede usar las funciones de entrada de la base.
  */
 export async function sinTenant<T>(fn: (cliente: PoolClient) => Promise<T>): Promise<T> {
-  return enTransaccion(async () => undefined, fn);
+  return enTransaccion('BEGIN; SET LOCAL ROLE app_user', fn);
 }

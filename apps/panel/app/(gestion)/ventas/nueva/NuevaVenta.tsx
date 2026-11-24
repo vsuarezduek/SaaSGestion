@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent
 import { aCentavos, calcularVenta, comisionDeCobro, deCentavos, formatearCantidad, formatearPesos, normalizarCantidad, normalizarImporte } from '../../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../../lib/estilos.ts';
 import type { Borrador } from '../../../../lib/validacion.ts';
+import ModalNuevoCliente from '../../ModalNuevoCliente.tsx';
 import { buscarClientesAccion, buscarProductosAccion, cerrarVentaAccion, descartarAbiertaAccion, guardarAbiertaAccion } from '../acciones.ts';
 
 interface Cliente { id: string; nombre: string; saldo: string; listaId: string | null; descuento: number; cuentaCorriente: boolean; esConsumidorFinal: boolean }
@@ -13,6 +14,8 @@ interface Props {
   listas: { id: string; nombre: string }[];
   medios: { id: string; nombre: string; comisionPct: number; ivaComision: number; cajaIds: string[] }[];
   cajas: { id: string; nombre: string }[];
+  /** Categorías para dar de alta un cliente en la ventana emergente. */
+  categorias: { id: string; nombre: string }[];
   clienteInicial: Cliente;
   /** Tipo de comprobante elegido desde el buscador de Ventas. */
   comprobanteInicial?: string;
@@ -28,13 +31,16 @@ const COMPROBANTES: [string, string][] = [['remito', 'Remito'], ['factura_b', 'F
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comprobanteInicial, enCuentaCorrienteInicial, abierta, edicion }: Props) {
+export default function NuevaVenta({ listas, medios, cajas, categorias, clienteInicial, comprobanteInicial, enCuentaCorrienteInicial, abierta, edicion }: Props) {
   const ini = abierta?.datos ?? edicion?.datos;
   const router = useRouter();
   const [clave] = useState(() => crypto.randomUUID()); // la misma venta no se cierra dos veces
   const [cliente, setCliente] = useState<Cliente>(clienteInicial);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
+  const [clienteSinResultados, setClienteSinResultados] = useState(false);
+  const [modalCliente, setModalCliente] = useState<string | null>(null);
+  const turnoCliente = useRef(0);
   const [comprobante, setComprobante] = useState(ini?.comprobante ?? comprobanteInicial ?? 'remito');
   const [nroComprobante, setNroComprobante] = useState(ini?.nroComprobante ?? '');
   const [listaId, setListaId] = useState(ini?.listaId ?? clienteInicial.listaId ?? listas[0]?.id ?? '');
@@ -158,11 +164,16 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comp
 
   const buscarCliente = async (q: string) => {
     setBusquedaCliente(q);
-    setResultadosCliente(q.trim() ? await buscarClientesAccion(q) : []);
+    const mio = ++turnoCliente.current;
+    const r = q.trim() ? await buscarClientesAccion(q) : [];
+    if (mio !== turnoCliente.current) return; // llegó una búsqueda más nueva
+    setResultadosCliente(r);
+    setClienteSinResultados(q.trim() !== '' && r.length === 0);
   };
   const elegirCliente = (c: Cliente) => {
     setCliente(c);
     setResultadosCliente([]);
+    setClienteSinResultados(false);
     setBusquedaCliente('');
     if (c.listaId) setListaId(c.listaId);
     setDescTotal(String(c.descuento || 0));
@@ -227,6 +238,11 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comp
             {resultadosCliente.length > 0 && (
               <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, background: '#fff', border: '1px solid #d3e6de', borderRadius: 8 }}>
                 {resultadosCliente.map((c) => (<div key={c.id} style={{ padding: 8, cursor: 'pointer' }} onClick={() => elegirCliente(c)}>{c.nombre}</div>))}
+              </div>
+            )}
+            {clienteSinResultados && (
+              <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, background: '#fff', border: '1px solid #d3e6de', borderRadius: 8 }}>
+                <div style={{ padding: 8, cursor: 'pointer', color: '#1c9764', fontWeight: 600 }} onClick={() => { setModalCliente(busquedaCliente); setClienteSinResultados(false); }}>+ Crear cliente «{busquedaCliente.trim()}»</div>
               </div>
             )}
             {saldoDeuda && <div style={{ color: '#b4571a', fontSize: 13 }}>⚠ Este cliente tiene un saldo pendiente de {$(aCentavos(cliente.saldo))}</div>}
@@ -314,11 +330,14 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comp
       <div style={tarjeta}>
         <b>Cobro</b>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end', marginTop: 8 }}>
-          {cliente.cuentaCorriente && (
-            <label style={{ fontSize: 14 }}>
-              <input type="checkbox" checked={cobroTipo === 'cuenta_corriente'} onChange={(e) => setCobroTipo(e.target.checked ? 'cuenta_corriente' : 'caja')} /> Dejar en cuenta corriente (se paga $0)
+          {/* Como el prototipo: la opción está siempre a la vista dentro de la venta; si el cliente no tiene cuenta corriente, se explica por qué. */}
+          <div style={{ flex: '1 1 100%' }}>
+            <label style={{ fontSize: 14, color: cliente.cuentaCorriente ? undefined : '#8a9b94' }}>
+              <input type="checkbox" disabled={!cliente.cuentaCorriente} checked={cobroTipo === 'cuenta_corriente'} onChange={(e) => setCobroTipo(e.target.checked ? 'cuenta_corriente' : 'caja')} /> Dejar en cuenta corriente (se paga $0)
             </label>
-          )}
+            {!cliente.cuentaCorriente && <div style={{ fontSize: 12, color: '#5c6d66' }}>{cliente.esConsumidorFinal ? 'El consumidor final no tiene cuenta corriente: elegí o creá el cliente.' : 'Este cliente no tiene cuenta corriente habilitada (se activa en Clientes → Categorías).'}</div>}
+            {cobroTipo === 'cuenta_corriente' && <div style={{ fontSize: 12, color: '#5c6d66' }}>Se registra un pago de $ 0: el total queda en la cuenta del cliente.</div>}
+          </div>
           {cobroTipo === 'caja' && (
             <>
               <label style={{ ...etiqueta, flex: '1 1 160px', marginBottom: 0 }}>Medio de pago
@@ -344,6 +363,13 @@ export default function NuevaVenta({ listas, medios, cajas, clienteInicial, comp
           {guardado && <span style={{ marginLeft: 10, color: '#5c6d66', fontSize: 13 }}>{guardado}</span>}
         </div>
       </div>
+      {modalCliente !== null && (
+        <ModalNuevoCliente
+          nombreInicial={modalCliente} categorias={categorias}
+          onCerrar={() => setModalCliente(null)}
+          onCreado={(c) => { setModalCliente(null); if (c.cliente) elegirCliente(c.cliente); else setMsg('Cliente creado, pero no se pudo cargar en la venta: buscalo de nuevo.'); }}
+        />
+      )}
     </>
   );
 }
