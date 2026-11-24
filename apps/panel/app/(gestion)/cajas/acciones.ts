@@ -1,7 +1,7 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { ErrorDeUsuario } from '../../../lib/auth.ts';
-import { abrirCaja, cambiarEstadoCaja, cerrarCaja, guardarCaja, moverCaja, movimientoManual, reabrirCaja, revertirMovimientoCaja, transferir } from '../../../lib/cajas.ts';
+import { abrirCaja, cambiarEstadoCaja, movimientosDeUsuarios, cerrarCaja, guardarCaja, moverCaja, movimientoManual, reabrirCaja, revertirMovimientoCaja, transferir } from '../../../lib/cajas.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { sesionObligatoria } from '../../../lib/sesion.ts';
 
@@ -45,4 +45,9 @@ export async function estadoCajaAccion(id: string, activa: boolean): Promise<Res
 }
 export async function moverCajaAccion(id: string, direccion: 'arriba' | 'abajo'): Promise<Resultado> {
   return intentar((s) => moverCaja(s, id, direccion));
+}
+
+/** Pantalla Cajas: movimientos de los usuarios (filtro por usuario solo para el administrador; lo aplica el servidor). */
+export async function movimientosUsuariosAccion(usuarioId: string | null, limite: number) {
+  return movimientosDeUsuarios(await sesionObligatoria(), { usuarioId, limite });
 }
