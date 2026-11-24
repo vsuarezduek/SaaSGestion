@@ -184,7 +184,20 @@ export default function NuevaVenta({ listas, medios, cajas, categorias, clienteI
     setBusquedaProd(q);
     setResultadosProd(q.trim() ? await buscarProductosAccion(q, listaId || null) : []);
   };
+  const sumarUno = (clave: number) => {
+    setRenglones((rs) => rs.map((r) => {
+      if (r.clave !== clave) return r;
+      const n = Number(r.cantidad.replace(',', '.'));
+      return { ...r, cantidad: Number.isFinite(n) ? String(Math.round((n + 1) * 1000) / 1000) : '1' };
+    }));
+    setResultadosProd([]);
+    setBusquedaProd('');
+    setTimeout(() => refs.current[clave]?.select(), 0);
+  };
   const agregar = (p: Producto) => {
+    // Como el prototipo: si el producto ya está, suma uno a su cantidad y el cursor va ahí.
+    const ya = renglones.find((r) => r.productoId === p.id);
+    if (ya) { sumarUno(ya.clave); return; }
     const clave = ++contador;
     // El producto nuevo va arriba y el cursor pasa a la cantidad.
     setRenglones((r) => [{ clave, productoId: p.id, descripcion: p.nombre, cantidad: '1', precio: p.precio, descuentoPct: '0', iva: p.iva, stock: p.stock }, ...r]);

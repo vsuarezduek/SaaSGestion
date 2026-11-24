@@ -1,30 +1,39 @@
 import { formatearPesos } from '../../../../packages/dominio/src/index.ts';
 import { tarjeta } from '../../lib/estilos.ts';
-import { perfilDe, type TipoPersona } from '../../lib/informes.ts';
-import type { SesionActiva } from '../../lib/auth.ts';
+import type { Perfil, TipoPersona } from '../../lib/informes.ts';
+import { Seccion } from './Orden.tsx';
 
-const fecha = (d: Date | null) => (d ? new Date(d).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '–');
+const gris = { fontSize: 12, color: '#5c6d66' } as const;
+export const fechaCorta = (d: Date | null) => (d ? new Date(d).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '');
 
-/** Resumen de la relación con un cliente o proveedor: totales, ticket, desde cuándo y qué más compra / vende. */
-export default async function PerfilPersona({ sesion, tipo, id }: { sesion: SesionActiva; tipo: TipoPersona; id: string }) {
-  const p = await perfilDe(sesion, tipo, id);
-  if (!p) return null;
+/** Las tarjetas del perfil del prototipo: total, operaciones, ticket promedio y saldo de la cuenta corriente. */
+export function TarjetasPerfil({ tipo, p, saldo, debe }: { tipo: TipoPersona; p: Perfil; saldo: string; debe: boolean }) {
+  const t: [string, string, boolean?][] = [
+    [tipo === 'cliente' ? 'Total comprado' : 'Total comprado a este proveedor', formatearPesos(p.total)],
+    ['Operaciones', String(p.operaciones)],
+    ['Ticket promedio', formatearPesos(p.ticketPromedio)],
+    ['Saldo cta. cte.', saldo, debe],
+  ];
   return (
-    <div style={tarjeta}>
-      <b>{tipo === 'cliente' ? 'Perfil del cliente' : 'Perfil del proveedor'}</b>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, margin: '8px 0', fontSize: 14 }}>
-        <div><div style={{ fontSize: 12, color: '#5c6d66' }}>{tipo === 'cliente' ? 'Total comprado' : 'Total comprado a este proveedor'}</div><b>{formatearPesos(p.total)}</b></div>
-        <div><div style={{ fontSize: 12, color: '#5c6d66' }}>Operaciones</div><b>{p.operaciones}</b></div>
-        <div><div style={{ fontSize: 12, color: '#5c6d66' }}>Ticket promedio</div><b>{formatearPesos(p.ticketPromedio)}</b></div>
-        <div><div style={{ fontSize: 12, color: '#5c6d66' }}>{tipo === 'cliente' ? 'Cliente desde' : 'Proveedor desde'}</div><b>{fecha(p.desde)}</b></div>
-        <div><div style={{ fontSize: 12, color: '#5c6d66' }}>Última operación</div><b>{fecha(p.ultima)}</b></div>
-      </div>
-      {p.topProductos.length > 0 && (
-        <div style={{ fontSize: 14 }}>
-          <div style={{ fontSize: 12, color: '#5c6d66' }}>Lo que más {tipo === 'cliente' ? 'compra' : 'le comprás'}</div>
-          {p.topProductos.map((t, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{t.nombre}</span><span>{formatearPesos(t.monto)}</span></div>)}
-        </div>
-      )}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+      {t.map(([r, v, w]) => (
+        <div key={r} style={{ ...tarjeta, marginBottom: 0, padding: 12 }}><div style={gris}>{r}</div><div style={{ fontSize: 18, fontWeight: 700, color: w ? '#b4571a' : undefined }}>{v}</div></div>
+      ))}
     </div>
+  );
+}
+
+/** «Top 5 productos» del perfil, al final de la ficha como en el prototipo (desplegable). */
+export function TopProductos({ tipo, p }: { tipo: TipoPersona; p: Perfil }) {
+  return (
+    <Seccion titulo={`Top ${p.topProductos.length || 5} productos`} estilo={tarjeta} abiertoInicial>
+      <div style={gris}>Lo que más {tipo === 'cliente' ? 'compra' : 'le comprás'}, por monto.</div>
+      {p.topProductos.map((t, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderBottom: '1px solid #d3e6de', fontSize: 14 }}>
+          <span>{i + 1}. {t.nombre}</span><b>{formatearPesos(t.monto)}</b>
+        </div>
+      ))}
+      {p.topProductos.length === 0 && <div style={gris}>Todavía no hay operaciones.</div>}
+    </Seccion>
   );
 }

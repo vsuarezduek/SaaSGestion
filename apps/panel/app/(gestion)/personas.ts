@@ -26,6 +26,8 @@ export async function guardarPersonaAccion(tipo: Tipo, id: string | null, datos:
   const s = await sesionObligatoria();
   const r = await intentar(() => (tipo === 'cliente' ? guardarCliente(s, id, datos) : guardarProveedor(s, id, datos)));
   if (r.error) return r;
+  // Editando desde la ficha se queda en la ficha (vuelve a la vista de lectura); un alta va al listado.
+  if (id) { revalidatePath(`${ruta(tipo)}/${id}`); return {}; }
   redirect(ruta(tipo));
 }
 

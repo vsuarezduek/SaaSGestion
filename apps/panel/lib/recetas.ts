@@ -244,3 +244,13 @@ export async function buscarIngredientes(s: SesionActiva, q: string, excluirId: 
     [t.replace(/[%_\\]/g, ''), UUID.test(excluirId) ? excluirId : '00000000-0000-0000-0000-000000000000']));
   return r.rows;
 }
+
+/** Productos compuestos cuya receta usa este producto («Forma parte de» en la ficha, como el prototipo). */
+export async function formaParteDe(s: SesionActiva, productoId: string): Promise<{ id: string; nombre: string }[]> {
+  exigir(s, 'productos');
+  if (!UUID.test(productoId)) return [];
+  const r = await conTenant(s.tenantId, (c) => c.query<{ id: string; nombre: string }>(
+    `SELECT p.id, p.nombre FROM receta_ingredientes ri JOIN productos p ON p.id = ri.producto_id
+      WHERE ri.ingrediente_id = $1 AND p.activo ORDER BY lower(p.nombre)`, [productoId]));
+  return r.rows;
+}

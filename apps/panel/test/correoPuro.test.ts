@@ -118,3 +118,26 @@ test('cuerpo del comprobante: escapa lo que viene de la base', () => {
   assert.ok(html.includes('Té &lt;b&gt;'));
   assert.match(texto, /Total \$ 2\.000,00/);
 });
+
+test('PDF del comprobante (D-041): es un PDF, con varias páginas si hace falta, y tolera caracteres fuera de WinAnsi', async () => {
+  const { pdfDeComprobante, aWinAnsi } = await import('../lib/comprobantePdf.ts');
+  assert.equal(aWinAnsi('−$ 1.234,50 «Año» → ok'), '-$ 1.234,50 «Año» ? ok');
+  const base = { titulo: 'Venta N° 7', subtitulo: 'Factura B · 24/11/2026', contraparte: { etiqueta: 'Cliente', nombre: 'Laura Pérez' }, totales: [{ etiqueta: 'IVA 21%:', valor: '$ 21,00' }, { etiqueta: 'Total', valor: '$ 121,00' }], nota: 'Entregar → mañana', saludo: 'Hola', cierre: 'Gracias' };
+  const e = { nombre: 'Comercio Ñandú', color: '#1c9764', telefono: '123', email: 'a@b.test', web: null, domicilio: 'Calle 1' };
+  const corto = await pdfDeComprobante({ ...base, renglones: [{ descripcion: 'Té de manzanilla 🌼', cantidad: '1', importe: '$ 121,00' }] }, e);
+  assert.equal(Buffer.from(corto.subarray(0, 5)).toString('latin1'), '%PDF-');
+  const largo = await pdfDeComprobante({ ...base, renglones: Array.from({ length: 120 }, (_, i) => ({ descripcion: `Producto ${i}`, cantidad: '1', importe: '$ 1,00' })) }, e);
+  const { PDFDocument } = await import('pdf-lib');
+  assert.equal((await PDFDocument.load(corto)).getPageCount(), 1);
+  assert.ok((await PDFDocument.load(largo)).getPageCount() >= 3);
+});
+
+test('MIME con adjunto: multipart/mixed, nombre de archivo sin caracteres peligrosos y tipo validado', () => {
+  const m = { de: 'yo@gmail.com', para: 'a@b.test', asunto: 'Venta', texto: 't', html: '<b>h</b>', adjuntos: [{ nombre: 'Venta N° 1 "x"\r\nBcc: z@z.test.pdf', tipo: 'application/pdf', bytes: new Uint8Array([37, 80, 68, 70]) }] };
+  const crudo = armarMime(m, 'LIM');
+  assert.match(crudo, /Content-Type: multipart\/mixed; boundary="LIM_mx"/);
+  assert.match(crudo, /filename="Venta_N_1_x_Bcc_z_z\.test\.pdf"/);
+  assert.doesNotMatch(crudo, /^Bcc:/m);
+  assert.match(crudo, /JVBERg==/);
+  assert.throws(() => armarMime({ ...m, adjuntos: [{ ...m.adjuntos[0]!, tipo: 'text/html\r\nX: y' }] }));
+});

@@ -39,7 +39,7 @@ export default function RecetaProducto({ r, nombre, unidad }: { r: Receta; nombr
   const difiere = r.ingredientes.length > 0 && Math.abs(aCentavos(r.costoReceta) - aCentavos(r.costoActual)) > 50;
 
   return (
-    <div style={{ ...tarjeta, maxWidth: 720 }}>
+    <div style={tarjeta}>
       <b>Receta</b>
       <div style={{ margin: '8px 0', display: 'flex', gap: 8 }}>
         <button type="button" style={tab === 'ing' ? boton : botonSecundario} onClick={() => setTab('ing')}>Ingredientes</button>

@@ -28,7 +28,7 @@ export default function StockProducto({ productoId, stock, minimo, unidad, filas
       if (r.error) setMsg(r.error);
     });
   return (
-    <div style={{ ...tarjeta, maxWidth: 720 }}>
+    <div style={tarjeta}>
       {aviso && <div style={{ background: aviso.bg, color: aviso.c, borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{aviso.t}</div>}
       <button type="button" style={{ ...botonSecundario, width: '100%', textAlign: 'left' }} onClick={() => setAbierta(!abierta)}>
         {abierta ? '▾' : '▸'} Stock actual: {formatearCantidad(stock)} {unidad}

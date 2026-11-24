@@ -1,4 +1,5 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { aCentavos, ALICUOTAS_IVA, deCentavos, normalizarImporte, precioDesdeUtilidad, utilidadDesdePrecio } from '../../../../../packages/dominio/src/index.ts';
 import { boton, botonSecundario, campo, error as estiloError, etiqueta, tarjeta } from '../../../lib/estilos.ts';
@@ -17,15 +18,18 @@ interface Props {
   rubros: { id: string; ruta: string }[];
   proveedores: { id: string; nombre: string }[];
   datosExtra: { id: string; nombre: string; valores: string[] }[];
+  /** Desde la ficha (vista de resumen, «Modificar»): se abre editando, con la barra fija Guardar / Cancelar; al terminar vuelve a la vista. */
+  onTerminar?: () => void;
 }
 
 const NUEVO = '__nuevo__';
 
-export default function FormularioProducto({ inicial, listas, rubros, proveedores, datosExtra }: Props) {
+export default function FormularioProducto({ inicial, listas, rubros, proveedores, datosExtra, onTerminar }: Props) {
+  const router = useRouter();
   const [d, setD] = useState(inicial);
   // Un producto existente se ve primero tal cual está; «Editar» habilita los campos y «Cancelar» vuelve a lo último guardado.
   const esNuevo = inicial.id === null;
-  const [editando, setEditando] = useState(esNuevo);
+  const [editando, setEditando] = useState(esNuevo || !!onTerminar);
   const [base, setBase] = useState(inicial);
   const [msg, setMsg] = useState<string | null>(null);
   const [pend, iniciar] = useTransition();
@@ -56,9 +60,10 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
       });
       if (r?.error) { setMsg(r.error); return; }
       setBase(d);
+      if (onTerminar) { router.refresh(); onTerminar(); return; }
       if (!esNuevo) setEditando(false);
     });
-  const cancelar = () => { setD(base); setMsg(null); setEditando(false); };
+  const cancelar = () => { if (onTerminar) { onTerminar(); return; } setD(base); setMsg(null); setEditando(false); };
 
   const casilla = (k: 'vendible' | 'comprable' | 'integrable' | 'publicadoWeb', texto: string) => (
     <label style={{ marginRight: 14, fontSize: 14 }}>
@@ -67,7 +72,15 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
   );
 
   return (
-    <div style={{ ...tarjeta, maxWidth: 720 }}>
+    <>
+    {onTerminar && (
+      <div style={{ ...tarjeta, position: 'sticky', top: 0, zIndex: 5, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <b style={{ flex: 1 }}>Modificando producto</b>
+        <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
+        <button type="button" style={botonSecundario} disabled={pend} onClick={cancelar}>Cancelar</button>
+      </div>
+    )}
+    <div style={tarjeta}>
       {msg && <div style={estiloError}>{msg}</div>}
       <fieldset disabled={!editando} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <label style={etiqueta}>Nombre<input style={campo} value={d.nombre} onChange={(e) => set('nombre', e.target.value)} /></label>
@@ -141,7 +154,7 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
         </>
       )}
       </fieldset>
-      <div style={{ display: 'flex', gap: 10 }}>
+      {!onTerminar && <div style={{ display: 'flex', gap: 10 }}>
         {editando ? (
           <>
             <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
@@ -162,7 +175,14 @@ export default function FormularioProducto({ inicial, listas, rubros, proveedore
             Eliminar
           </button>
         )}
-      </div>
+      </div>}
+      {onTerminar && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" style={boton} disabled={pend} onClick={guardar}>{pend ? 'Guardando…' : 'Guardar'}</button>
+          <button type="button" style={botonSecundario} disabled={pend} onClick={cancelar}>Cancelar</button>
+        </div>
+      )}
     </div>
+    </>
   );
 }

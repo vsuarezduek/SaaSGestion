@@ -28,6 +28,8 @@ interface Props {
     renglones: { productoId: string | null; descripcion: string; cantidad: string; costo: string; descuentoPct: string; iva: number }[] } } | null;
   /** Productos bajo el stock mínimo (cuando se llega desde "Comprar faltantes"). */
   faltantes?: (Producto & { cantidad: string })[];
+  /** Mercadería anotada a mano en el Inicio (fuera del catálogo): entra como ítem libre, con el costo a completar. */
+  libres?: { descripcion: string; cantidad: string }[];
   puedeAgregarCategorias: boolean;
 }
 
@@ -36,7 +38,7 @@ const MODOS: [string, string][] = [['costo_y_precio', 'Actualizar costo y manten
 const pctNum = (t: string) => Number(t.replace(',', '.') || '0');
 let contador = 0;
 
-export default function NuevaCompra({ categorias, cajas, proveedorInicial, comprobanteInicial, categoriasProveedor, edicion, abierta, faltantes, puedeAgregarCategorias }: Props) {
+export default function NuevaCompra({ categorias, cajas, proveedorInicial, comprobanteInicial, categoriasProveedor, edicion, abierta, faltantes, libres, puedeAgregarCategorias }: Props) {
   const ini = edicion?.datos ?? abierta?.datos;
   const abiertaRef = useRef<{ id: string | null; version: number }>({ id: abierta?.id ?? null, version: abierta?.version ?? 1 });
   const router = useRouter();
@@ -56,7 +58,8 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, compr
   const [modoCostos, setModoCostos] = useState(ini?.modoCostos ?? 'costo_y_precio');
   const [renglones, setRenglones] = useState<Renglon[]>(() =>
     ini ? ini.renglones.map((r) => ({ clave: ++contador, ...r, stock: null }))
-      : (faltantes ?? []).map((f) => ({ clave: ++contador, productoId: f.id, descripcion: f.nombre, cantidad: f.cantidad, costo: f.costo, descuentoPct: '0', iva: f.iva, stock: f.stock })));
+      : [...(faltantes ?? []).map((f) => ({ clave: ++contador, productoId: f.id, descripcion: f.nombre, cantidad: f.cantidad, costo: f.costo, descuentoPct: '0', iva: f.iva, stock: f.stock })),
+         ...(libres ?? []).map((l) => ({ clave: ++contador, productoId: null, descripcion: l.descripcion, cantidad: l.cantidad, costo: '', descuentoPct: '0', iva: 21, stock: null }))]);
   const [busquedaProd, setBusquedaProd] = useState('');
   const [resultadosProd, setResultadosProd] = useState<Producto[]>([]);
   const [pagoTipo, setPagoTipo] = useState<'caja' | 'cuenta_corriente'>(ini?.pagoTipo ?? 'caja');
@@ -98,7 +101,20 @@ export default function NuevaCompra({ categorias, cajas, proveedorInicial, compr
     setBusquedaProd(q);
     setResultadosProd(q.trim() ? await buscarProductosCompraAccion(q) : []);
   };
+  const sumarUno = (clave: number) => {
+    setRenglones((rs) => rs.map((r) => {
+      if (r.clave !== clave) return r;
+      const n = Number(r.cantidad.replace(',', '.'));
+      return { ...r, cantidad: Number.isFinite(n) ? String(Math.round((n + 1) * 1000) / 1000) : '1' };
+    }));
+    setResultadosProd([]);
+    setBusquedaProd('');
+    setTimeout(() => refs.current[clave]?.select(), 0);
+  };
   const agregar = (p: Producto) => {
+    // Como el prototipo: si el producto ya está, suma uno a su cantidad y el cursor va ahí; si no, va arriba con el cursor en la cantidad.
+    const ya = renglones.find((r) => r.productoId === p.id);
+    if (ya) { sumarUno(ya.clave); return; }
     const k = ++contador;
     setRenglones((r) => [{ clave: k, productoId: p.id, descripcion: p.nombre, cantidad: '1', costo: p.costo, descuentoPct: '0', iva: p.iva, stock: p.stock }, ...r]);
     setResultadosProd([]);

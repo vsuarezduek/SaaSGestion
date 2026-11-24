@@ -20,7 +20,8 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | **Datos extras** configurables (renombrar, agregar, quitar) y valores por producto | ✅ | D-024 |
 | Datos extras: lista de productos por valor, renombrar valor, quitar valor, agregar productos | ✅ | v44 |
 | **Editar el producto en la misma página** (Editar / Guardar / Cancelar) | ✅ | D-031 |
-| Los datos extras se muestran al final de la página del producto | 🟡 | Están en la ficha, antes de Guardar |
+| Los datos extras se muestran al final de la página del producto | ✅ | D-041 |
+| Ficha del producto como el prototipo: resumen, etiquetas, tarjetas de stock/costo/precios con utilidad, «Modificar» con barra fija Guardar/Cancelar, «Forma parte de» | ✅ | D-041 |
 | Historial de ventas y compras del producto | ✅ | Desplegables en la ficha |
 | Modificación masiva (por proveedor/rubro/lista, % o $) | ✅ | D-025; con vista previa |
 | Exportar/importar CSV (por código, crear inexistentes) | ✅ | Importar con vista previa (D-023) y exportar con columnas elegibles (D-025) |
@@ -43,6 +44,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Órdenes de pago a proveedores | ✅ | Desde la cuenta corriente del proveedor o de una compra; se anulan con inversos |
 | Devolución de pago | ✅ | D-019. Solo hasta el saldo a favor; sale de una caja abierta; se anula |
 | Perfil: total comprado, ticket promedio, top 5 productos; **historial arriba del ranking** | ✅ | En la ficha de cliente y de proveedor |
+| Ficha de cliente y proveedor como el perfil del prototipo: datos en lectura con «Editar» en el lugar y los botones (+ Venta/Compra, NC, recibo u orden de pago, devolución, faltantes) | ✅ | D-041 |
 | Proveedor: productos del proveedor, cargar compra de faltantes | ✅ | |
 | Informes de clientes y proveedores (deudores, top 10, etc.) | ✅ | `/informes`, con período, «solo con saldo» y CSV |
 | Saldos iniciales: herramienta de importación | ✅ | Columna Saldo en la importación de clientes y proveedores |
@@ -61,12 +63,12 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Anular venta (movimientos inversos, con motivo) | ✅ | En el prototipo "Eliminar" |
 | **Descuento único**: un solo parámetro, en % o en $ total, mostrando el ajuste en $ y % | ✅ | v43–v44. Alternador % / $ total, con el ajuste en ambas unidades (D-013 ampliada) |
 | Enter en precio/descuento salta a buscar otro producto | ✅ | |
-| Productos nuevos arriba y cursor en cantidad | 🟡 | Verificar |
+| Productos nuevos arriba y cursor en cantidad | ✅ | D-041. Si el producto ya está, suma uno a su cantidad (venta y compra) |
 | Editar una venta cerrada | ✅ | D-020. Anula la original y crea la nueva en una sola transacción |
 | Ventas abiertas con guardado automático, "+ Nueva venta" | ✅ | Compartidas entre usuarios, con control de versión (D-016) |
 | Pedidos de clientes (guardar como pedido, convertir en venta) | ✅ | D-017. Se ven en Ventas y en la ficha del cliente |
-| Nota de crédito y devolución | 🟡 | D-018, D-036, D-038. Desde la venta o sin venta de origen (tipo de comprobante «Nota de crédito» o «+ Nota de crédito» en la ficha del cliente) (cliente, productos y precio a mano), con devolución a caja o cuenta corriente. Falta comprobante electrónico |
-| PDF y email del comprobante (con IVA detallado) | 🟡 | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Con la casilla conectada (Ajustes → Correo, D-032) el envío es automático, con el detalle en el cuerpo del mail; falta el PDF adjunto |
+| Nota de crédito y devolución | ✅ | D-018, D-036, D-038. Desde la venta o sin venta de origen (tipo de comprobante «Nota de crédito» o «+ Nota de crédito» en la ficha del cliente) (cliente, productos y precio a mano), con devolución a caja o cuenta corriente. El comprobante electrónico es de la etapa 3 (ARCA) |
+| PDF y email del comprobante (con IVA detallado) | ✅ | D-021. PDF con logo e IVA por alícuota; «Enviar por mail» abre el programa de mail con el texto (D-030). Con la casilla conectada (Ajustes → Correo, D-032) el envío es automático, con el detalle en el cuerpo y el **PDF adjunto** (D-041, pdf-lib) |
 | Facturación ARCA | ⬜ | Etapa 3 |
 
 ## Compras
@@ -96,10 +98,11 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Alertas de stock en el inicio | ✅ | |
 | Tarjetas de ventas de hoy y ticket promedio, pedidos pendientes, mercadería a pedir | ✅ | Mercadería agrupada por proveedor, con tildes y «Armar compra»; sesión anterior |
-| Inicio con fecha y hora, «Operando como» y secciones desplegables (pedidos de clientes, mercadería pendiente, alertas, historial) | ✅ | D-037. Falta agregar mercadería fuera del catálogo al pedido pendiente |
+| Inicio con fecha y hora, «Operando como» y secciones desplegables (pedidos de clientes, mercadería pendiente, alertas, historial) | ✅ | D-037 |
+| Agregar mercadería fuera del catálogo al pedido pendiente | ✅ | D-041. Migración 0026; entra en «Armar compra» como ítem libre |
 | Historial de actividad (administrador) | ✅ | En palabras, con enlace; requiere permiso de ajustes |
 | **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ✅ | D-027 |
-| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; PNG por gráfico (D-031) |
+| Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | ✅ | Cartel, CSV y PNG por gráfico (D-031); «Descargar todo en PDF», «Desplegar todo» y «Plegar todo» (D-041) |
 | Frase del día | ✅ | Una por día, de estoicos célebres (Séneca, Marco Aurelio, Epicteto, Zenón) |
 
 ## Ajustes y usuarios
@@ -112,9 +115,12 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Retenciones/comisiones por medio | ✅ | Medios de pago |
 | Rubros | ✅ | |
 | Costos fijos | ✅ | Productos → Costos fijos (D-026) |
+| Botones de sección arriba en Ajustes (Empresa, Usuarios, Clientes, Rubros, Retenciones…) | ✅ | D-041 |
 
 ## Orden sugerido
-1. **Ventas, segunda entrega:** ✅ casi completa (falta el email del comprobante y la nota de crédito sin venta de origen).
+> **Etapa 1 completa (D-041):** todo lo del prototipo está en el sistema real. Lo único pendiente es la facturación electrónica ARCA, que es de la etapa 3.
+
+1. **Ventas, segunda entrega:** ✅ completa.
 2. **Compras** y **órdenes de pago** (espejo de ventas y recibos).
 3. **Productos:** datos extras, edición en la misma página, historial, masiva, CSV, listas, informe filtrado.
 4. **Recetas, elaboración y costos fijos.**

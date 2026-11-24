@@ -1,4 +1,6 @@
+import { formatearCantidad } from '../../../../../../packages/dominio/src/index.ts';
 import { listarCajas } from '../../../../lib/cajas.ts';
+import { mercaderiaManual } from '../../../../lib/aPedir.ts';
 import { buscarProveedoresParaCompra, categoriasDeCompra, datosParaEditarCompra, faltantesParaComprar } from '../../../../lib/compras.ts';
 import { obtenerCompraAbierta } from '../../../../lib/comprasAbiertas.ts';
 import { categoriasDeProveedor, obtenerProveedor } from '../../../../lib/personas.ts';
@@ -7,16 +9,18 @@ import NuevaCompra from './NuevaCompra.tsx';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Nueva({ searchParams }: { searchParams: Promise<{ editar?: string; proveedor?: string; faltantes?: string; ids?: string; abierta?: string; comprobante?: string }> }) {
-  const { editar, proveedor, faltantes, ids, abierta: abiertaId, comprobante } = await searchParams;
+export default async function Nueva({ searchParams }: { searchParams: Promise<{ editar?: string; proveedor?: string; faltantes?: string; ids?: string; manuales?: string; abierta?: string; comprobante?: string }> }) {
+  const { editar, proveedor, faltantes, ids, manuales, abierta: abiertaId, comprobante } = await searchParams;
   const s = await sesionObligatoria();
   const edicion = editar ? await datosParaEditarCompra(s, editar) : null;
   const abierta = abiertaId && !edicion ? await obtenerCompraAbierta(s, abiertaId) : null;
-  const [categorias, cajas, elegido, sugeridos, catsProv] = await Promise.all([
+  const [categorias, cajas, elegido, sugeridos, catsProv, anotados] = await Promise.all([
     categoriasDeCompra(s), listarCajas(s),
     proveedor && !edicion ? obtenerProveedor(s, proveedor) : Promise.resolve(null),
-    faltantes && !edicion ? faltantesParaComprar(s, { proveedorId: faltantes === 'proveedor' ? proveedor : undefined, ids: ids ? ids.split(',') : undefined }) : Promise.resolve([]),
+    // ids vacío con mercadería anotada a mano: solo esa mercadería, sin los faltantes del catálogo.
+    faltantes && !edicion && !(ids === '' && manuales) ? faltantesParaComprar(s, { proveedorId: faltantes === 'proveedor' ? proveedor : undefined, ids: ids ? ids.split(',') : undefined }) : Promise.resolve([]),
     categoriasDeProveedor(s).catch(() => []), // sin permiso de Proveedores, el alta rápida va sin sugerencias
+    manuales && !edicion ? mercaderiaManual(s, { ids: manuales.split(',') }) : Promise.resolve([]),
   ]);
   const inicial = edicion?.proveedor ?? abierta?.proveedor ?? (elegido ? { id: elegido.id, nombre: elegido.nombre, saldo: elegido.saldo } : null);
   return (
@@ -34,6 +38,7 @@ export default async function Nueva({ searchParams }: { searchParams: Promise<{ 
         abierta={abierta ? { id: abierta.id, version: abierta.version, datos: abierta.datos } : null}
         edicion={edicion ? { compraId: editar!, numero: edicion.numero, datos: edicion.datos } : null}
         faltantes={sugeridos}
+        libres={anotados.map((m) => ({ descripcion: m.descripcion, cantidad: m.cantidad ? formatearCantidad(m.cantidad) : '1' }))}
         puedeAgregarCategorias={s.rol === 'administrador' || s.permisos.includes('ajustes')}
       />
     </main>
