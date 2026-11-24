@@ -1,65 +1,85 @@
 'use client';
-import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { boton, botonSecundario, campo, tarjeta } from '../../../lib/estilos.ts';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { boton, campo, tarjeta } from '../../../lib/estilos.ts';
+import type { ClienteParaVenta } from '../../../lib/ventas.ts';
+import { aCentavos, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
+import ModalNuevoCliente from '../ModalNuevoCliente.tsx';
 import { buscarClientesAccion } from './acciones.ts';
 
-interface Cliente { id: string; nombre: string; saldo: string; esConsumidorFinal: boolean; cuentaCorriente: boolean }
-const TIPOS: [string, string][] = [['remito', 'Remito'], ['factura_b', 'Factura B'], ['factura_a', 'Factura A'], ['sin_comprobante', 'Sin comprobante']];
+/** Igual que el prototipo: la nota de crédito es un tipo de comprobante más (sin venta de origen). */
+const TIPOS: [string, string][] = [['remito', 'Remito'], ['factura_b', 'Factura B'], ['factura_a', 'Factura A'], ['sin_comprobante', 'Sin comprobante'], ['nota_credito', 'Nota de crédito']];
 
-/** Elegir cliente y tipo de comprobante y pasar directo a una venta nueva. */
-export default function BuscadorNuevaVenta() {
+/**
+ * «Nueva venta» como en el prototipo: buscar el cliente (por defecto Consumidor final), elegir el comprobante y Continuar.
+ * Si el cliente no existe se crea ahí mismo en una ventana emergente. La cuenta corriente se elige dentro de la venta.
+ */
+export default function BuscadorNuevaVenta({ categorias }: { categorias: { id: string; nombre: string }[] }) {
+  const router = useRouter();
   const [q, setQ] = useState('');
   const [tipo, setTipo] = useState('remito');
-  const [res, setRes] = useState<Cliente[]>([]);
-  const [enCuenta, setEnCuenta] = useState(false);
+  const [res, setRes] = useState<ClienteParaVenta[] | null>(null);
+  const [cliente, setCliente] = useState<{ id: string; nombre: string; saldo: string } | null>(null); // null = Consumidor final
+  const [modal, setModal] = useState<string | null>(null);
+  const [yendo, iniciar] = useTransition();
   const turno = useRef(0);
   useEffect(() => {
     const mio = ++turno.current;
-    // Sin texto no se lista a nadie: aparecen recién cuando se escribe.
-    if (q.trim() === '') { setRes([]); return; }
+    if (q.trim() === '') { setRes(null); return; }
     const t = setTimeout(async () => {
       const r = await buscarClientesAccion(q);
       if (mio === turno.current) setRes(r);
     }, 200);
     return () => clearTimeout(t);
   }, [q]);
+
+  const elegir = (c: { id: string; nombre: string; saldo: string }) => { setCliente(c); setQ(''); setRes(null); };
+  const continuar = () => iniciar(() => {
+    const qs = new URLSearchParams();
+    if (cliente) qs.set('cliente', cliente.id);
+    if (tipo === 'nota_credito') { router.push(`/ventas/nota-de-credito/nueva${cliente ? `?${qs}` : ''}`); return; }
+    qs.set('comprobante', tipo);
+    router.push(`/ventas/nueva?${qs}`);
+  });
+  const saldo = cliente ? aCentavos(cliente.saldo) : 0;
+
   return (
     <div style={tarjeta}>
       <b>Nueva venta</b>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente por nombre, CUIT o teléfono" style={{ ...campo, flex: '2 1 240px', marginTop: 0 }} />
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ ...campo, flex: '1 1 150px', marginTop: 0 }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente (por defecto: Consumidor final)" style={{ ...campo, flex: '2 1 240px', marginTop: 0 }} />
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Comprobante" style={{ ...campo, flex: '1 1 150px', marginTop: 0 }}>
           {TIPOS.map(([v, t]) => (<option key={v} value={v}>{t}</option>))}
         </select>
       </div>
-      <label style={{ display: 'block', margin: '8px 0', fontSize: 14 }}>
-        <input type="checkbox" checked={enCuenta} onChange={(e) => setEnCuenta(e.target.checked)} /> Dejar en cuenta corriente (se paga $0)
-      </label>
-      <div style={{ marginTop: 4 }}>
-        {q.trim() === '' ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: '#5c6d66' }}>Escribí para buscar un cliente, o vendé directo:</span>
-            <Link href={`/ventas/nueva?comprobante=${tipo}`} style={{ ...botonSecundario, textDecoration: 'none', padding: '6px 12px' }}>Consumidor final →</Link>
-          </div>
-        ) : (
-          <>
-            {res.map((c) => {
-              const cc = enCuenta && c.cuentaCorriente;
-              return (
-                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #d3e6de' }}>
-                  <span>
-                    {c.nombre}{Number(c.saldo) > 0 ? <span style={{ color: '#b4571a', fontSize: 12 }}> · debe ${c.saldo}</span> : null}
-                    {enCuenta && !c.cuentaCorriente && <span style={{ color: '#8a6d00', fontSize: 12 }}> · {c.esConsumidorFinal ? 'el consumidor final no tiene cuenta corriente' : 'su categoría no tiene cuenta corriente'}</span>}
-                  </span>
-                  <Link href={`/ventas/nueva?cliente=${c.id}&comprobante=${tipo}${cc ? '&cc=1' : ''}`} style={{ ...boton, textDecoration: 'none', padding: '6px 12px' }}>{cc ? 'Vender en cuenta →' : 'Vender →'}</Link>
-                </div>
-              );
-            })}
-            {res.length === 0 && <div style={{ fontSize: 13, color: '#5c6d66' }}>No hay clientes con esa búsqueda.</div>}
-          </>
-        )}
-      </div>
+      {q.trim() !== '' && (
+        <div style={{ marginTop: 6, maxHeight: 340, overflowY: 'auto' }}>
+          {res === null && <div style={{ fontSize: 13, color: '#5c6d66' }}>Buscando…</div>}
+          {res?.map((c) => (
+            <button key={c.id} type="button" onClick={() => elegir(c)}
+              style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8, padding: '8px 4px', background: 'none', border: 0, borderBottom: '1px solid #d3e6de', cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
+              <span>{c.nombre}</span>
+              {aCentavos(c.saldo) > 0 && <span style={{ color: '#b4571a', fontSize: 12 }}>debe {formatearPesos(aCentavos(c.saldo))}</span>}
+            </button>
+          ))}
+          {res && res.length === 0 && (
+            <button type="button" onClick={() => setModal(q)}
+              style={{ width: '100%', padding: 8, marginTop: 4, background: '#f0f8f5', border: '1px dashed #1c9764', borderRadius: 8, cursor: 'pointer', color: '#1c9764', fontWeight: 600, font: 'inherit', textAlign: 'left' }}>
+              + Crear cliente «{q.trim()}»
+            </button>
+          )}
+        </div>
+      )}
+      <p style={{ fontSize: 14, color: '#5c6d66', margin: '10px 0 4px' }}>Cliente: <b style={{ color: '#1f2d27' }}>{cliente?.nombre ?? 'Consumidor final'}</b></p>
+      {saldo !== 0 && <div style={{ fontSize: 13, color: saldo > 0 ? '#b4571a' : '#1b5f63', marginBottom: 6 }}>{saldo > 0 ? 'Saldo pendiente de cobro' : 'Saldo a favor del cliente'}: {formatearPesos(Math.abs(saldo))}</div>}
+      <button type="button" style={boton} disabled={yendo} onClick={continuar}>{yendo ? 'Abriendo…' : 'Continuar'}</button>
+      {modal !== null && (
+        <ModalNuevoCliente
+          nombreInicial={modal} categorias={categorias}
+          onCerrar={() => setModal(null)}
+          onCreado={(c) => { setModal(null); elegir({ id: c.id, nombre: c.nombre, saldo: c.cliente?.saldo ?? '0' }); }}
+        />
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { aCentavos, formatearPesos } from '../../../../../../packages/dominio/src/index.ts';
 import Link from 'next/link';
 import { listarAbiertasDeCliente, listarPedidos } from '../../../../lib/ventasAbiertas.ts';
-import { boton, tarjeta } from '../../../../lib/estilos.ts';
+import { boton, botonSecundario, tarjeta } from '../../../../lib/estilos.ts';
 import PerfilPersona from '../../PerfilPersona.tsx';
 import ListaPedidos from '../../ventas/ListaPedidos.tsx';
 import CuentaCorriente from '../../CuentaCorriente.tsx';
@@ -25,6 +25,13 @@ export default async function FichaCliente({ params }: { params: Promise<{ id: s
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontFamily: 'Georgia, serif' }}>{c.nombre}</h1>
+      {/* Como el perfil del prototipo: desde el cliente se arranca una venta o una nota de crédito sin venta de origen. */}
+      {c.activo && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <Link href={`/ventas/nueva?cliente=${c.id}`} style={{ ...boton, textDecoration: 'none' }}>+ Venta</Link>
+          <Link href={`/ventas/nota-de-credito/nueva?cliente=${c.id}`} style={{ ...botonSecundario, textDecoration: 'none' }}>+ Nota de crédito</Link>
+        </div>
+      )}
       <FormularioPersona
         tipo="cliente" categorias={cats.filter((x) => x.activa || x.id === c.categoriaId)}
         inicial={{ id: c.id, nombre: c.nombre, telefono: c.telefono ?? '', email: c.email ?? '', domicilio: c.domicilio ?? '', localidad: c.localidad ?? '', cuit: c.cuit ?? '', condicionIva: c.condicionIva, categoriaId: c.categoriaId ?? '', contacto: '', categoria: '', activo: c.activo, esConsumidorFinal: c.esConsumidorFinal }}

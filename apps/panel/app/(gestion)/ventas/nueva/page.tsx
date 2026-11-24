@@ -4,6 +4,7 @@ import { sesionObligatoria } from '../../../../lib/sesion.ts';
 import { buscarClientesParaVenta, clienteParaVenta, datosParaEditar, listarMediosDePago } from '../../../../lib/ventas.ts';
 import { obtenerAbierta } from '../../../../lib/ventasAbiertas.ts';
 import NuevaVenta from './NuevaVenta.tsx';
+import { listarCategorias } from '../../../../lib/personas.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,10 @@ export default async function Nueva({ searchParams }: { searchParams: Promise<{ 
   const abierta = abiertaId ? await obtenerAbierta(s, abiertaId) : null;
   const edicion = editar ? await datosParaEditar(s, editar) : null;
   const elegido = clienteId && !abierta && !edicion ? await clienteParaVenta(s, clienteId) : null;
-  const [listas, medios, cajas, cf] = await Promise.all([listasDePrecios(s), listarMediosDePago(s), listarCajas(s), buscarClientesParaVenta(s, '')]);
+  const [listas, medios, cajas, cf, cats] = await Promise.all([
+    listasDePrecios(s), listarMediosDePago(s), listarCajas(s), buscarClientesParaVenta(s, ''),
+    listarCategorias(s).then((l) => l.filter((c) => c.activa).map((c) => ({ id: c.id, nombre: c.nombre }))).catch(() => []),
+  ]);
   return (
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontFamily: 'Georgia, serif' }}>{edicion ? `Editar venta N° ${edicion.numero}` : abierta ? (abierta.datos.pedido ? 'Pedido de cliente' : 'Venta abierta') : 'Nueva venta'}</h1>
@@ -28,6 +32,7 @@ export default async function Nueva({ searchParams }: { searchParams: Promise<{ 
         listas={listas}
         medios={medios.filter((m) => m.activo).map((m) => ({ id: m.id, nombre: m.nombre, comisionPct: m.comisionPct, ivaComision: m.ivaComision, cajaIds: m.cajaIds }))}
         cajas={cajas.filter((c) => c.abierta).map((c) => ({ id: c.id, nombre: c.nombre }))}
+        categorias={cats}
         clienteInicial={edicion?.cliente ?? abierta?.cliente ?? elegido ?? cf.find((c) => c.esConsumidorFinal) ?? cf[0]!}
       />
     </main>
