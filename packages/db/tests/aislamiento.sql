@@ -754,4 +754,21 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM nota_credito_compra_renglones) <> 0 THEN RAISE EXCEPTION 'B ve los renglones de las notas de A'; END IF;
 END $$;
 
+-- 29) Mercadería a pedir fuera del catálogo: aislada por comercio; se quita (no se borra) y quitada no se toca.
+SELECT set_config('app.tenant_id', :'a', true);
+DO $$ DECLARE m uuid; BEGIN
+  INSERT INTO mercaderia_a_pedir (tenant_id, descripcion, cantidad) VALUES (app.tenant_id(), 'Bolsas kraft', 100) RETURNING id INTO m;
+  BEGIN INSERT INTO mercaderia_a_pedir (tenant_id, descripcion) VALUES (app.tenant_id(), '   '); RAISE EXCEPTION 'permitió una descripción vacía';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN DELETE FROM mercaderia_a_pedir WHERE id = m; RAISE EXCEPTION 'permitió borrar mercadería a pedir';
+  EXCEPTION WHEN insufficient_privilege OR restrict_violation THEN NULL; END;
+  UPDATE mercaderia_a_pedir SET estado = 'quitada', quitada_en = now() WHERE id = m;
+  BEGIN UPDATE mercaderia_a_pedir SET estado = 'pendiente', quitada_en = NULL WHERE id = m; RAISE EXCEPTION 'permitió volver a pendiente';
+  EXCEPTION WHEN restrict_violation THEN NULL; END;
+END $$;
+SELECT set_config('app.tenant_id', :'b', true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM mercaderia_a_pedir) <> 0 THEN RAISE EXCEPTION 'B ve la mercadería a pedir de A'; END IF;
+END $$;
+
 ROLLBACK;  -- los tests no dejan datos

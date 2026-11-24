@@ -5,6 +5,7 @@ import { alertasDeStock } from '../../../lib/stock.ts';
 import { aCentavos, formatearCantidad, formatearPesos } from '../../../../../packages/dominio/src/index.ts';
 import { puede, type Rol } from '../../../../../packages/seguridad/src/index.ts';
 import { faltantesParaComprar } from '../../../lib/compras.ts';
+import { mercaderiaManual, proveedoresParaPedir } from '../../../lib/aPedir.ts';
 import { actividadReciente, fraseDelDia, resumenDeHoy, totalActividad } from '../../../lib/inicio.ts';
 import { ErrorDePermiso } from '../../../lib/permisos.ts';
 import { listarPedidos } from '../../../lib/ventasAbiertas.ts';
@@ -44,13 +45,15 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
   const verMontos = puede(quien, 'informes');
   const esAdmin = puede(quien, 'ajustes');
   const sinPermiso = (e: unknown) => { if (e instanceof ErrorDePermiso) return null; throw e; };
-  const [resumen, alertas, pedidos, faltantes, actividad, totalHistorial] = await Promise.all([
+  const [resumen, alertas, pedidos, faltantes, actividad, totalHistorial, manuales, provsPedir] = await Promise.all([
     resumenDeHoy(sesion),
     alertasDeStock(sesion),
     listarPedidos(sesion).catch(sinPermiso),
     faltantesParaComprar(sesion).catch(sinPermiso),
     esAdmin ? actividadReciente(sesion, verHistorial) : Promise.resolve([]),
     esAdmin ? totalActividad(sesion) : Promise.resolve(0),
+    mercaderiaManual(sesion).catch(sinPermiso),
+    proveedoresParaPedir(sesion).catch(sinPermiso),
   ]);
   const frase = fraseDelDia();
   const grupos: GrupoPedir[] = [];
@@ -58,6 +61,13 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
     const g = grupos.find((x) => x.proveedorId === f.proveedorId) ?? (grupos.push({ proveedorId: f.proveedorId, proveedor: f.proveedorNombre ?? 'Sin proveedor asignado', items: [] }), grupos[grupos.length - 1]!);
     g.items.push({ id: f.id, nombre: f.nombre, stock: formatearCantidad(f.stock), cantidad: formatearCantidad(f.cantidad), unidad: f.unidad, marcado: f.marcado });
   }
+  // Lo anotado a mano, fuera del catálogo, en el grupo de su proveedor (como el prototipo).
+  for (const m of manuales ?? []) {
+    const g = grupos.find((x) => x.proveedorId === m.proveedorId) ?? (grupos.push({ proveedorId: m.proveedorId, proveedor: m.proveedor ?? 'Sin proveedor asignado', items: [] }), grupos[grupos.length - 1]!);
+    g.items.push({ id: m.id, nombre: m.descripcion, stock: null, cantidad: m.cantidad ? formatearCantidad(m.cantidad) : '', unidad: '', marcado: false, manual: true });
+  }
+  grupos.sort((a, b) => (a.proveedorId === null ? 1 : b.proveedorId === null ? -1 : a.proveedor.localeCompare(b.proveedor, 'es')));
+  const totalPendiente = grupos.reduce((n, g) => n + g.items.length, 0);
   const cuando = (d: Date) => new Date(d).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short', timeStyle: 'short' });
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
   const totalAlertas = alertas.negativos.length + alertas.bajoMinimo.length;
@@ -105,9 +115,10 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
       )}
 
       {faltantes && (
-        <Desplegable titulo={`Pedido de mercadería pendiente (${faltantes.length})`}>
-          <div style={gris}>Lo que falta y hay que pedir: productos bajo el mínimo y los marcados «para pedir» desde su ficha. Tildá y armá la compra por proveedor.</div>
-          {grupos.length === 0 ? <div style={{ ...gris, padding: 6 }}>Nada pendiente.</div> : <PedirMercaderia grupos={grupos} />}
+        <Desplegable titulo={`Pedido de mercadería pendiente (${totalPendiente})`}>
+          <div style={gris}>Lo que falta y hay que pedir: productos bajo el mínimo, los marcados «para pedir» desde su ficha y lo anotado a mano fuera del catálogo. Tildá y armá la compra por proveedor.</div>
+          <PedirMercaderia grupos={grupos} proveedores={provsPedir ?? []} />
+          {grupos.length === 0 && <div style={{ ...gris, padding: 6 }}>Nada pendiente. Agregá mercadería faltante con el botón.</div>}
         </Desplegable>
       )}
 

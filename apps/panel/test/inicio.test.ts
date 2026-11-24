@@ -73,3 +73,31 @@ test('resumen del día y actividad: sin ventas da ceros, y la actividad exige ad
   await assert.rejects(totalActividad(cocina), ErrorDePermiso);
   assert.equal((await resumenDeHoy(cocina)).ventas, 0);
 });
+
+test('mercadería fuera del catálogo (D-041): se anota con cantidad y proveedor, se quita sin borrarse y está aislada', async () => {
+  const { agregarMercaderiaManual, mercaderiaManual, quitarMercaderiaManual } = await import('../lib/aPedir.ts');
+  const prov = await guardarProveedor(A, null, { nombre: `Bolsas ${sufijo}`, contacto: '', categoria: '', telefono: '', email: '', domicilio: '', localidad: '', cuit: '', condicionIva: null });
+  const id = await agregarMercaderiaManual(A, { descripcion: '  Bolsas kraft medianas ', cantidad: '1.000,5', proveedorId: prov });
+  await agregarMercaderiaManual(A, { descripcion: 'Cinta de embalar' });
+  let l = await mercaderiaManual(A);
+  const bolsas = l.find((m) => m.id === id)!;
+  assert.equal(bolsas.descripcion, 'Bolsas kraft medianas');
+  assert.equal(bolsas.cantidad, '1000.500');
+  assert.equal(bolsas.proveedorId, prov);
+  assert.ok(l.some((m) => m.descripcion === 'Cinta de embalar' && m.cantidad === null && m.proveedorId === null));
+  assert.deepEqual((await mercaderiaManual(A, { ids: [id] })).map((m) => m.id), [id], 'filtra por los elegidos al armar la compra');
+  assert.deepEqual(await mercaderiaManual(A, { ids: [] }), []);
+  await assert.rejects(agregarMercaderiaManual(A, { descripcion: '   ' }), /Escribí/);
+  await assert.rejects(agregarMercaderiaManual(A, { descripcion: 'x', cantidad: '-2' }), /cantidad/);
+  await assert.rejects(agregarMercaderiaManual(B, { descripcion: 'x', proveedorId: prov }), /proveedor/, 'no puede usar un proveedor de otro comercio');
+  assert.deepEqual(await mercaderiaManual(B), [], 'B no ve lo de A');
+  await assert.rejects(quitarMercaderiaManual(B, id), /Ya no está/, 'B no puede quitar lo de A');
+  await quitarMercaderiaManual(A, id);
+  l = await mercaderiaManual(A);
+  assert.ok(!l.some((m) => m.id === id));
+  await assert.rejects(quitarMercaderiaManual(A, id), /Ya no está/);
+  const n = await conTenant(A.tenantId, (c) => c.query("SELECT estado FROM mercaderia_a_pedir WHERE id = $1", [id]));
+  assert.equal(n.rows[0]!.estado, 'quitada', 'queda el rastro');
+  const atencion: SesionActiva = { ...A, rol: 'atencion', permisos: [] };
+  assert.ok(Array.isArray(await mercaderiaManual(atencion)), 'Compras es sección base: cualquier usuario del comercio la ve');
+});

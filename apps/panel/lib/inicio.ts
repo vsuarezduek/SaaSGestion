@@ -38,6 +38,7 @@ const ENTIDADES: Record<string, [string, string | null]> = {
   dato_extra: ['un dato extra', null], categoria_cliente: ['una categoría de clientes', null], categoria_compra: ['una categoría de compras', null],
   devolucion_pago: ['una devolución de pago', '/devoluciones'], productos: ['varios productos', '/productos'],
   usuario: ['un usuario', '/ajustes/usuarios'], empresa: ['los datos de la empresa', '/ajustes/empresa'],
+  mercaderia_a_pedir: ['mercadería fuera del catálogo', '/panel'],
 };
 const VERBOS: Record<string, string> = {
   crear: 'creó', modificar: 'modificó', anular: 'anuló', archivar: 'archivó', eliminar: 'eliminó', cerrar: 'cerró', abrir: 'abrió', registrar: 'registró', emitir: 'emitió',
