@@ -7,7 +7,7 @@ import { abrirCaja, guardarCaja, obtenerCaja } from '../lib/cajas.ts';
 import { guardarProducto, listasDePrecios, obtenerProducto } from '../lib/catalogo.ts';
 import { agregarCategoriaDeCompra, anularCompra, cerrarCompra, datosParaEditarCompra, listarCompras, obtenerCompra } from '../lib/compras.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
-import { guardarProveedor, obtenerProveedor } from '../lib/personas.ts';
+import { guardarProveedor, listarProveedores, obtenerProveedor, ultimosProveedoresConOperaciones } from '../lib/personas.ts';
 
 const sufijo = Date.now().toString(36);
 let A: SesionActiva;
@@ -185,4 +185,23 @@ test('un comercio no ve ni toca las compras de otro', async () => {
   assert.equal((await listarCompras(B, {})).length, 0);
   await assert.rejects(anularCompra(B, r.id, 'intento'), ErrorDeUsuario);
   await assert.rejects(compra({}, B), ErrorDeUsuario);        // proveedor y caja de A no existen para B
+});
+
+// ───────── Pantalla Proveedores (como Clientes) ─────────
+test('Proveedores sin búsqueda: últimos 10 con compras, uno por proveedor y del otro comercio nada', async () => {
+  const otro = await guardarProveedor(A, null, { nombre: 'Proveedor reciente', contacto: '', categoria: '', telefono: '', email: '', domicilio: '', localidad: '', cuit: '', condicionIva: null });
+  await compra({ proveedorId: otro });
+  const c2 = await compra({ proveedorId: otro });
+  const u = await ultimosProveedoresConOperaciones(A);
+  assert.ok(u.length <= 10);
+  assert.equal(u[0]!.proveedorId, otro);
+  assert.equal(u[0]!.compraId, c2.id);
+  assert.equal(u.filter((x) => x.proveedorId === otro).length, 1);
+  assert.equal((await ultimosProveedoresConOperaciones(B)).some((x) => x.proveedorId === otro), false);
+});
+
+test('el buscador de Proveedores encuentra por teléfono y mail, solo en su comercio', async () => {
+  await guardarProveedor(A, null, { nombre: 'Lácteos del Sur', contacto: '', categoria: '', telefono: '2614445566', email: 'ventas@lacteos.test', domicilio: '', localidad: '', cuit: '', condicionIva: null });
+  for (const q of ['4445566', 'ventas@lacteos']) assert.equal((await listarProveedores(A, { q })).filas.some((f) => f.nombre === 'Lácteos del Sur'), true, q);
+  assert.equal((await listarProveedores(B, { q: 'ventas@lacteos' })).filas.length, 0);
 });

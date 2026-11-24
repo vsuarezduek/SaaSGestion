@@ -22,7 +22,7 @@ export default async function FichaProveedor({ params }: { params: Promise<{ id:
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h1 style={{ fontFamily: 'Georgia, serif' }}>{p.nombre}</h1>
         <span>
-          <Link href={`/compras/nota-de-credito/nueva?proveedor=${p.id}`} style={{ ...botonSecundario, textDecoration: 'none', marginRight: 8 }}>Nota de crédito</Link>
+          <Link href={`/compras/nota-de-credito/nueva?proveedor=${p.id}`} style={{ ...botonSecundario, textDecoration: 'none', marginRight: 8 }}>+ Nota de crédito</Link>
           <Link href={`/compras/nueva?proveedor=${p.id}`} style={{ ...boton, textDecoration: 'none' }}>+ Compra</Link>
         </span>
       </div>

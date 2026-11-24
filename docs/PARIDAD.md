@@ -34,6 +34,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Fichas, categorías de cliente (lista, cta. cte., descuento, venta a costo), archivar | ✅ | |
 | Consumidor Final | ✅ | |
 | Pantalla Clientes: buscador de entrada, alta si no encuentra, últimos 10 con operaciones, listado completo desplegable y ordenable, descargar lista | ✅ | D-038 |
+| Pantalla Proveedores: igual que Clientes (buscador, alta si no encuentra, últimos 10, listado ordenable, descargar lista) | ✅ | D-039 |
 | Cuenta corriente como libro de solo agregar, saldo inicial, ajustes, reversión | ✅ | |
 | **Historial con saldo en cada movimiento** | ✅ | Cuenta corriente de cliente y proveedor |
 | Historial: botones Editar / Agregar recibo de pago / Compartir (PDF o email) / Eliminar por venta o compra | ✅ | D-031. Editar y Compartir en cada fila; «Eliminar» = anular desde el detalle |
@@ -71,7 +72,9 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Función | Estado | Nota |
 |---|---|---|
 | Compras, categorías, actualizar costos, faltantes, cta. cte., impuesto por transacción, editar y anular | ✅ | D-022 |
-| Compras abiertas (borradores) | ✅ | D-035 |
+| Nueva compra: buscar proveedor, alta en ventana emergente si no existe, comprobante (incluye nota de crédito) y Continuar | ✅ | D-039 |
+| Compras abiertas (borradores) | ✅ | D-035; desplegable (D-039) |
+| Últimas compras desplegable, columnas ordenables con un click | ✅ | D-039 |
 | Nota de crédito de proveedor | ✅ | D-036. Siempre contra cuenta corriente; baja stock y deuda, no mueve caja |
 
 ## Cajas
