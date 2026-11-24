@@ -1,5 +1,5 @@
 'use client';
-// Mercadería a pedir agrupada por proveedor: se tildan los productos y se arma la compra con esa selección.
+// Mercadería a pedir agrupada por proveedor (cada proveedor se despliega): se tildan los productos y se arma la compra con esa selección.
 import Link from 'next/link';
 import { useState } from 'react';
 import { botonSecundario } from '../../../lib/estilos.ts';
@@ -15,18 +15,18 @@ export default function PedirMercaderia({ grupos }: { grupos: GrupoPedir[] }) {
         const ids = g.items.filter((i) => marcados[i.id]).map((i) => i.id);
         const url = `/compras/nueva?faltantes=1${g.proveedorId ? `&proveedor=${g.proveedorId}` : ''}&ids=${ids.join(',')}`;
         return (
-          <div key={g.proveedorId ?? 'sin'} style={{ marginTop: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b style={{ fontSize: 14 }}>{g.proveedor}</b>
+          <details key={g.proveedorId ?? 'sin'} style={{ marginTop: 10 }}>
+            <summary style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span><b style={{ fontSize: 14 }}>▸ {g.proveedor}</b> <small style={{ color: '#5c6d66' }}>({g.items.length})</small></span>
               {ids.length > 0 && <Link href={url} style={{ ...botonSecundario, textDecoration: 'none', padding: '4px 10px', fontSize: 13 }}>Armar compra ({ids.length})</Link>}
-            </div>
+            </summary>
             {g.items.map((i) => (
               <label key={i.id} style={{ display: 'flex', gap: 8, padding: '3px 0', fontSize: 14 }}>
                 <input type="checkbox" checked={!!marcados[i.id]} onChange={(e) => setMarcados({ ...marcados, [i.id]: e.target.checked })} />
                 <span>{i.nombre} · hay {i.stock}, pedir {i.cantidad} {i.unidad}{i.marcado ? ' · marcado' : ''}</span>
               </label>
             ))}
-          </div>
+          </details>
         );
       })}
     </>

@@ -89,6 +89,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 |---|---|---|
 | Alertas de stock en el inicio | ✅ | |
 | Tarjetas de ventas de hoy y ticket promedio, pedidos pendientes, mercadería a pedir | ✅ | Mercadería agrupada por proveedor, con tildes y «Armar compra»; sesión anterior |
+| Inicio con fecha y hora, «Operando como» y secciones desplegables (pedidos de clientes, mercadería pendiente, alertas, historial) | ✅ | D-037. Falta agregar mercadería fuera del catálogo al pedido pendiente |
 | Historial de actividad (administrador) | ✅ | En palabras, con enlace; requiere permiso de ajustes |
 | **Estadísticas**: gráficos por día/mes, medio, usuario, día de la semana, hora, top productos/clientes, saldos | ✅ | D-027 |
 | Estadísticas desplegables, con **cartel de monto al pasar el mouse**, PNG/CSV/PDF | 🟡 | Desplegables, cartel y CSV (por gráfico y total) hechos; PDF con imprimir del navegador; PNG por gráfico (D-031) |
