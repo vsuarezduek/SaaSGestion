@@ -12,7 +12,15 @@ Regla: staging solo con datos **anonimizados**; producción solo con el OK expl�
 node scripts/prototipo/exportar.mjs --html prototipo.html --base volcado/ --salida datos-reales/
 node scripts/prototipo/exportar.mjs --html prototipo.html --base volcado/ --salida datos-ensayo/ --anonimizar
 ```
-Cada carpeta queda con `1-proveedores.csv`, `2-clientes.csv`, `3-productos.csv`, `config.json` y `resumen.md` (orden de carga, totales de control, categorías, cajas y avisos). **Leer los avisos** antes de seguir.
+Si el dueño decide arrancar una caja con otro saldo, se agrega `--saldo-caja "Nombre=importe"` (se puede repetir). Otras opciones: `--unir-proveedores-repetidos` (dos proveedores con el mismo nombre entran como uno, sumando el saldo) y `--omitir-cliente "Nombre"` (se puede repetir).
+
+Para Mística (decisiones del dueño del 25/11):
+```bash
+--saldo-caja "Mercadopago=0" --saldo-caja "MercadoPago Empresa=159853" --unir-proveedores-repetidos \
+--omitir-cliente "BURMET SA (Burgery Shopping)" --omitir-cliente "BURMET SA (Burgery Aristides)"
+```
+
+Cada carpeta queda con `1-proveedores.csv`, `2-clientes.csv`, `3-productos.csv`, `4-recetas.json`, `config.json` y `resumen.md` (orden de carga, totales de control, categorías, cajas y avisos). **Leer los avisos** antes de seguir.
 
 ## 3. Ensayo en staging (datos anonimizados)
 ```bash
@@ -31,5 +39,5 @@ cd apps/panel
 VERCEL_ENV=production DATABASE_URL=… CLAVE_ADMIN=… node --no-warnings scripts/cargar-prototipo.ts \
   --carpeta ../../datos-reales --comercio mistica --crear --produccion --nombre "Mística Natural" --email <admin> --admin "<nombre>"
 ```
-4. A mano en Ajustes: usuarios y permisos, medios de pago y comisiones, recetas, empresa y logo, casilla de correo.
+4. A mano en Ajustes: usuarios y permisos, medios de pago y comisiones, empresa y logo, casilla de correo.
 5. Uso en paralelo 2 a 4 semanas comparando cajas y saldos todos los días.
