@@ -9,6 +9,8 @@
 // con un JSON por documento (<id>.json), como la deja la herramienta de datos de artifacts.
 // --anonimizar reemplaza los datos personales de los clientes (nombre, teléfono, mail, domicilio, CUIT) para ensayar en
 // staging sin datos reales de clientes; los saldos, productos y proveedores quedan iguales.
+// --saldo-caja "Nombre=importe" (se puede repetir) fija el saldo inicial de una caja en vez del que da el prototipo,
+// cuando el dueño decide arrancar esa caja con otro saldo (por ejemplo "Mercadopago=0"). Queda anotado en el resumen.
 //
 // Redondeo: el prototipo guarda importes como número de JavaScript. Cada saldo se calcula como el prototipo (suma de los
 // movimientos) y recién al final se redondea a centavos, mitad hacia arriba en valor absoluto. Así el CSV muestra lo
@@ -21,6 +23,12 @@ const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
 const HTML = opt('--html'), BASE = opt('--base'), SALIDA = opt('--salida');
 const ANON = args.includes('--anonimizar');
+/** Saldos de caja fijados a mano: nombre en minúsculas → centavos. */
+const SALDO_CAJA = new Map(args.flatMap((a, i) => (a === '--saldo-caja' ? [args[i + 1] ?? ''] : [])).map((v) => {
+  const m = /^(.+)=(-?\d+(?:[.,]\d{1,2})?)$/.exec(v.trim());
+  if (!m) { console.error(`--saldo-caja "${v}": usá "Nombre=importe", por ejemplo "Mercadopago=0"`); process.exit(1); }
+  return [m[1].trim().toLowerCase(), Math.round(Number(m[2].replace(',', '.')) * 100)];
+}));
 if (!HTML || !BASE || !SALIDA) {
   console.error('Uso: node scripts/prototipo/exportar.mjs --html <prototipo.html> --base <volcado> --salida <carpeta> [--anonimizar]');
   process.exit(1);
@@ -214,7 +222,12 @@ for (const p of productos) {
 // Cajas: saldo = suma de movimientos (como bal() del prototipo)
 const movs = Object.values(D.movs);
 const cajas = Object.entries(D.cajas).filter(([, c]) => !c.del).sort((a, b) => (a[1].o ?? 0) - (b[1].o ?? 0))
-  .map(([id, c]) => ({ n: c.n, saldo: centavos(movs.filter((m) => m.caja == id).reduce((a, m) => a + m.m, 0)), cerrada: !!c.blq, tipo: c.tipo || 'efectivo' }));
+  .map(([id, c]) => {
+    const prototipo = centavos(movs.filter((m) => m.caja == id).reduce((a, m) => a + m.m, 0));
+    const fijado = SALDO_CAJA.get(String(c.n).trim().toLowerCase());
+    return { n: c.n, saldo: fijado ?? prototipo, prototipo, fijado: fijado !== undefined, cerrada: !!c.blq, tipo: c.tipo || 'efectivo' };
+  });
+for (const n of SALDO_CAJA.keys()) if (!cajas.some((c) => String(c.n).trim().toLowerCase() === n)) { console.error(`--saldo-caja: no hay ninguna caja «${n}» en el prototipo`); process.exit(1); }
 
 // ───────── Salida ─────────
 mkdirSync(SALIDA, { recursive: true });
@@ -253,10 +266,10 @@ Generado el ${new Date().toISOString()} (UTC) con \`scripts/prototipo/exportar.m
 |---|---|---|---|---|
 ${categorias.map((c) => `| ${c.n} | ${c.lista === 'b' ? 'Mayorista' : 'Minorista'} | ${c.desc || 0}% | ${c.costo ? 'Sí' : 'No'} | ${c.cc === false ? 'No' : 'Sí'} |`).join('\n')}
 
-## Cajas (saldo actual en el prototipo)
-| Caja | Tipo | Saldo | Estado |
+## Cajas (saldo inicial que se carga)
+| Caja | Tipo | Saldo inicial | Estado en el prototipo |
 |---|---|---|---|
-${cajas.map((c) => `| ${c.n} | ${c.tipo} | ${$(c.saldo)} | ${c.cerrada ? 'cerrada' : 'abierta'} |`).join('\n')}
+${cajas.map((c) => `| ${c.n} | ${c.tipo} | ${$(c.saldo)}${c.fijado ? ` (fijado a mano; en el prototipo ${$(c.prototipo)})` : ''} | ${c.cerrada ? 'cerrada' : 'abierta'} |`).join('\n')}
 
 ## Lo que no viaja en los CSV
 - **Recetas**: ${conReceta} productos tienen receta en el prototipo; se cargan a mano en cada producto (o con una herramienta aparte si son muchas).
