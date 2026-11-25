@@ -48,6 +48,7 @@ Estados: ✅ hecho · 🟡 parcial · ⬜ falta. Se actualiza en cada entrega.
 | Proveedor: productos del proveedor, cargar compra de faltantes | ✅ | |
 | Informes de clientes y proveedores (deudores, top 10, etc.) | ✅ | `/informes`, con período, «solo con saldo» y CSV |
 | Saldos iniciales: herramienta de importación | ✅ | Columna Saldo en la importación de clientes y proveedores |
+| Migración desde el prototipo (productos, clientes, proveedores, saldos y cajas) | ✅ | D-042: `exportar.mjs` + `cargar-prototipo.ts`, con totales de control; recetas e historial quedan aparte |
 
 ## Ventas
 | Función | Estado | Nota |
