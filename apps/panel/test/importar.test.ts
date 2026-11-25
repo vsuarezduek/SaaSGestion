@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { crearComercio, ErrorDeUsuario, type SesionActiva } from '../lib/auth.ts';
 import { listasDePrecios } from '../lib/catalogo.ts';
 import { cerrarPool, conTenant } from '../lib/db.ts';
-import { importarLista, parsearCsv, plantilla } from '../lib/importar.ts';
+import { importarLista, parsearCsv, plantilla, siNo } from '../lib/importar.ts';
 import { guardarCategoria } from '../lib/personas.ts';
 
 const sufijo = Date.now().toString(36);
@@ -156,4 +156,40 @@ test('la vista previa de productos muestra el precio anterior y el nuevo', async
   assert.equal(d.accion, 'actualizar');
   assert.ok(d.cambios.some((c) => /^Costo: 100(\.00)? → 120(\.00)?$/.test(c)), d.cambios.join('|'));
   assert.ok(d.cambios.some((c) => c.includes(`Precio ${lista}`) && c.includes('→ 650')), d.cambios.join('|'));
+});
+
+test('"Responsable Monotributo" se importa como monotributo y "IVA Sujeto Exento" como exento', async () => {
+  const r = await importarLista(A, 'clientes', 'Nombre;Condición IVA\nAna Mono;Responsable Monotributo\nFundación Exenta;IVA Sujeto Exento\nRaúl RI;Responsable Inscripto', opc);
+  assert.equal(r.erroresTotales, 0, JSON.stringify(r.errores));
+  const filas = (await conTenant(A.tenantId, (c) => c.query<{ nombre: string; condicion_iva: string }>(
+    "SELECT nombre, condicion_iva FROM clientes WHERE nombre IN ('Ana Mono', 'Fundación Exenta', 'Raúl RI') ORDER BY nombre"))).rows;
+  assert.deepEqual(filas.map((f) => f.condicion_iva), ['monotributo', 'exento', 'responsable_inscripto']);
+});
+
+test('las marcas Sí/No de productos se importan; vacías no cambian nada al actualizar', async () => {
+  assert.equal(siNo('Sí', 'x'), true);
+  assert.equal(siNo('no', 'x'), false);
+  assert.equal(siNo('', 'x'), null);
+  assert.throws(() => siNo('tal vez', 'Se vende'), ErrorDeUsuario);
+  const csv = 'Código;Nombre;Se vende;Se compra;Integra otros;Publicado web\nM1;Harina para recetas;No;Sí;Sí;No\nM2;Miel web;Sí;No;No;Sí';
+  const r = await importarLista(A, 'productos', csv, opc);
+  assert.deepEqual([r.creados, r.erroresTotales], [2, 0], JSON.stringify(r.errores));
+  const marcas = async () => (await conTenant(A.tenantId, (c) => c.query<{ codigo: string; vendible: boolean; comprable: boolean; integrable: boolean; publicado_web: boolean }>(
+    "SELECT codigo, vendible, comprable, integrable, publicado_web FROM productos WHERE codigo IN ('M1', 'M2') ORDER BY codigo"))).rows
+    .map((p) => [p.codigo, p.vendible, p.comprable, p.integrable, p.publicado_web]);
+  assert.deepEqual(await marcas(), [['M1', false, true, true, false], ['M2', true, false, false, true]]);
+  const previa = await importarLista(A, 'productos', 'Código;Nombre;Se vende\nM1;Harina para recetas;Sí\nM2;Miel web;', { actualizar: true, simular: true });
+  assert.ok(previa.detalle.find((d) => d.nombre === 'Harina para recetas')!.cambios.includes('Se vende: No → Sí'));
+  await importarLista(A, 'productos', 'Código;Nombre;Se vende\nM1;Harina para recetas;Sí\nM2;Miel web;', { actualizar: true, simular: false });
+  assert.deepEqual(await marcas(), [['M1', true, true, true, false], ['M2', true, false, false, true]]);
+  const malo = await importarLista(A, 'productos', 'Nombre;Se vende\nRaro;quizás', opc);
+  assert.equal(malo.erroresTotales, 1);
+});
+
+test('si una fila falla después de crear su rubro, la fila siguiente con ese rubro se importa igual', async () => {
+  // La primera fila crea el rubro y falla por el IVA: el savepoint deshace el rubro. La segunda no puede usar ese rubro fantasma.
+  const r = await importarLista(A, 'productos', 'Nombre;Rubro;IVA\nFalla;Rubro Fantasma;13\nAnda;Rubro Fantasma;21', opc);
+  assert.deepEqual([r.creados, r.erroresTotales], [1, 1], JSON.stringify(r.errores));
+  const n = await conTenant(A.tenantId, (c) => c.query("SELECT count(*) AS n FROM rubros WHERE nombre = 'Rubro Fantasma'"));
+  assert.equal(Number(n.rows[0].n), 1);
 });
