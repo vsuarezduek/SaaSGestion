@@ -11,7 +11,7 @@
 // Producción solo con --produccion y VERCEL_ENV=production, y solo con datos NO anonimizados; en cualquier otro entorno
 // se exigen datos anonimizados (CLAUDE.md: staging nunca con datos reales de clientes).
 // Se puede correr de nuevo: lo que ya existe se omite (no duplica personas, productos, stock ni saldos).
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { comercioPorSlug, crearComercio, type SesionActiva } from '../lib/auth.ts';
 import { abrirCaja, guardarCaja, listarCajasParaAjustes, movimientoManual, movimientosDeCaja } from '../lib/cajas.ts';
@@ -20,13 +20,18 @@ import { cerrarPool, conTenant, nombreVariable } from '../lib/db.ts';
 import { crearDatoExtra, listarDatosExtra } from '../lib/extras.ts';
 import { importarLista, type TipoImportacion } from '../lib/importar.ts';
 import { guardarCategoria, listarCategorias } from '../lib/personas.ts';
+import { agregarIngrediente, fijarCantidadIngrediente, guardarInstrucciones, guardarRinde } from '../lib/recetas.ts';
 
+interface Receta {
+  codigo: string; nombre: string; rinde: number; instrucciones: string;
+  ingredientes: { codigo: string; nombre: string; cantidad: number }[];
+}
 interface Config {
   anonimizado: boolean;
   datosExtra: string[];
   categorias: { nombre: string; lista: string; descuento: number; ventaACosto: boolean; cuentaCorriente: boolean }[];
   cajas: { nombre: string; tipo: 'efectivo' | 'digital'; saldo: string }[];
-  control: { proveedores: number; clientes: number; productos: number; saldoClientes: string; saldoProveedores: string; unidadesStock: string; valorStockCosto: string };
+  control: { proveedores: number; clientes: number; productos: number; recetas?: number; lineasReceta?: number; saldoClientes: string; saldoProveedores: string; unidadesStock: string; valorStockCosto: string };
 }
 
 const args = process.argv.slice(2);
@@ -83,6 +88,38 @@ async function main(): Promise<number> {
     for (const e of r.errores) console.log(`   fila ${e.fila}: ${e.mensaje}`);
   }
 
+  // Recetas: después de los productos, porque cada ingrediente es un producto. Una receta que ya tiene ingredientes no se toca.
+  const archivoRecetas = join(carpeta, '4-recetas.json');
+  if (!simular && existsSync(archivoRecetas)) {
+    const recetas = JSON.parse(readFileSync(archivoRecetas, 'utf8')) as Receta[];
+    const ids = (await conTenant(tenantId, (c) => c.query<{ id: string; codigo: string | null; nombre: string; con_receta: boolean }>(
+      'SELECT id, codigo, nombre, EXISTS (SELECT 1 FROM receta_ingredientes r WHERE r.producto_id = p.id) AS con_receta FROM productos p WHERE activo'))).rows;
+    const porCodigo = new Map(ids.filter((p) => p.codigo).map((p) => [p.codigo!.toLowerCase(), p]));
+    const porNombre = new Map(ids.filter((p) => !p.codigo).map((p) => [p.nombre.toLowerCase(), p]));
+    const buscar = (k: { codigo: string; nombre: string }) => (k.codigo ? porCodigo.get(k.codigo.toLowerCase()) : porNombre.get(k.nombre.toLowerCase()));
+    let cargadas = 0, yaEstaban = 0;
+    for (const r of recetas) {
+      const prod = buscar(r);
+      if (!prod) { errores++; console.log(`   receta de «${r.nombre}»: el producto no está en el sistema`); continue; }
+      if (prod.con_receta) { yaEstaban++; continue; }
+      try {
+        for (const i of r.ingredientes) {
+          const ing = buscar(i);
+          if (!ing) throw new Error(`el ingrediente «${i.nombre}» no está en el sistema`);
+          await agregarIngrediente(s, prod.id, ing.id);
+          await fijarCantidadIngrediente(s, prod.id, ing.id, String(i.cantidad));
+        }
+        await guardarRinde(s, prod.id, String(r.rinde));
+        if (r.instrucciones) await guardarInstrucciones(s, prod.id, r.instrucciones);
+        cargadas++;
+      } catch (e) {
+        errores++;
+        console.log(`   receta de «${r.nombre}»: ${(e as Error).message}`);
+      }
+    }
+    console.log(`✓ recetas: ${recetas.length} · ${cargadas} cargadas · ${yaEstaban} ya estaban`);
+  }
+
   // Cajas: se crean si faltan, se abren y reciben su saldo inicial (una sola vez).
   if (!simular) {
     for (const k of cfg.cajas) {
@@ -106,6 +143,8 @@ async function main(): Promise<number> {
            (SELECT count(*) FROM productos WHERE activo)::text AS productos,
            (SELECT COALESCE(sum(importe), 0) FROM cuenta_corriente_movimientos WHERE cliente_id IS NOT NULL)::numeric(14,2)::text AS "saldoClientes",
            (SELECT COALESCE(sum(importe), 0) FROM cuenta_corriente_movimientos WHERE proveedor_id IS NOT NULL)::numeric(14,2)::text AS "saldoProveedores",
+           (SELECT count(DISTINCT producto_id) FROM receta_ingredientes)::text AS recetas,
+           (SELECT count(*) FROM receta_ingredientes)::text AS "lineasReceta",
            (SELECT COALESCE(sum(cantidad), 0) FROM stock_movimientos)::numeric(14,3)::text AS "unidadesStock",
            (SELECT COALESCE(sum(round(greatest(st.cantidad, 0) * p.costo, 2)), 0) FROM productos p
               JOIN (SELECT producto_id, sum(cantidad) AS cantidad FROM stock_movimientos GROUP BY producto_id) st ON st.producto_id = p.id)::numeric(14,2)::text AS "valorStockCosto"`))).rows[0]!;

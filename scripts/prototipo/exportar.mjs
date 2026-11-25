@@ -23,6 +23,12 @@ const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
 const HTML = opt('--html'), BASE = opt('--base'), SALIDA = opt('--salida');
 const ANON = args.includes('--anonimizar');
+// --unir-proveedores-repetidos: dos proveedores con el mismo nombre se importan como uno solo (el primero); el segundo
+// le suma su saldo y completa los datos que al primero le faltan. Sin la opción, el segundo entra como «Nombre (2)».
+const UNIR_PROV = args.includes('--unir-proveedores-repetidos');
+// --omitir-cliente "Nombre" (se puede repetir): ese cliente no se importa. Si tenía saldo se avisa, porque los totales cambian.
+const plano0 = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const OMITIR_CLI = new Set(args.flatMap((a, i) => (a === '--omitir-cliente' ? [plano0(args[i + 1])] : [])));
 /** Saldos de caja fijados a mano: nombre en minúsculas → centavos. */
 const SALDO_CAJA = new Map(args.flatMap((a, i) => (a === '--saldo-caja' ? [args[i + 1] ?? ''] : [])).map((v) => {
   const m = /^(.+)=(-?\d+(?:[.,]\d{1,2})?)$/.exec(v.trim());
@@ -149,7 +155,21 @@ const cuitsProv = new Map(), cuentaProv = { cuitCorto: 0, mailMalo: 0, largo: 0 
 const filasProv = [['Nombre', 'Contacto', 'Categoría', 'Teléfono', 'Email', 'Domicilio', 'Localidad', 'CUIT', 'Condición IVA', 'Saldo']];
 let saldoProv = 0;
 const nombresProv = new Map(), provAscii = new Map(), provPorNombre = new Map();
+const filaProvPorNombre = new Map(), saldoFilaProv = new Map();
 for (const p of proveedores) {
+  const iva0 = condicionIva(p.iva);
+  if (UNIR_PROV && filaProvPorNombre.has(plano(p.n))) {
+    const fila = filaProvPorNombre.get(plano(p.n));
+    const sd = centavos(saldo('p', p.id));
+    const k = contactoValido(p, cuitsProv, `Proveedor «${p.n}» (repetido)`, cuentaProv);
+    [p.con, p.cat, k.tel, k.mail, k.dom, k.loc, k.cuit, iva0 ?? ''].forEach((v, i) => { if (!fila[i + 1] && v) fila[i + 1] = v; });
+    const total = saldoFilaProv.get(fila) + sd;
+    saldoFilaProv.set(fila, total);
+    fila[9] = total ? importe(total) : '';
+    saldoProv += sd;
+    avisar(`Proveedor repetido «${p.n}»: se importa uno solo${sd ? `; el saldo del repetido (${importe(sd)}) se suma al que queda` : ''}`);
+    continue;
+  }
   const nombre = nombreUnico(nombresProv, p.n);
   if (nombre !== String(p.n).trim()) avisar(`Proveedor repetido por nombre: «${p.n}» se importa como «${nombre}»`);
   if (!provPorNombre.has(plano(p.n))) provPorNombre.set(plano(p.n), nombre);
@@ -159,7 +179,10 @@ for (const p of proveedores) {
   const sd = centavos(saldo('p', p.id));
   saldoProv += sd;
   const k = contactoValido(p, cuitsProv, `Proveedor «${nombre}»`, cuentaProv);
-  filasProv.push([nombre, p.con, p.cat, k.tel, k.mail, k.dom, k.loc, k.cuit, iva ?? '', sd ? importe(sd) : '']);
+  const fila = [nombre, p.con, p.cat, k.tel, k.mail, k.dom, k.loc, k.cuit, iva ?? '', sd ? importe(sd) : ''];
+  filasProv.push(fila);
+  filaProvPorNombre.set(plano(p.n), fila);
+  saldoFilaProv.set(fila, sd);
 }
 
 // Clientes
@@ -167,8 +190,14 @@ const cuitsCli = new Map(), cuentaCli = { cuitCorto: 0, mailMalo: 0, largo: 0 };
 const filasCli = [['Nombre', 'Categoría', 'Teléfono', 'Email', 'Domicilio', 'Localidad', 'CUIT', 'Condición IVA', 'Saldo']];
 let saldoCli = 0, nCli = 0;
 const nombresCli = new Map();
+const omitidos = new Set();
 for (const c of clientes) {
   const sd = centavos(saldo('c', c.id));
+  if (OMITIR_CLI.has(plano(c.n))) {
+    omitidos.add(plano(c.n));
+    avisar(`Cliente ${ANON ? 'omitido' : '«' + c.n + '»'}: no se importa (pedido del dueño)${sd ? `. OJO: tenía saldo ${importe(sd)}, que no pasa al sistema` : ''}`);
+    continue;
+  }
   if (esCF(c)) { if (sd) avisar(`«Consumidor Final» tiene saldo ${importe(sd)} en el prototipo: no se importa (el sistema tiene su propio consumidor final)`); continue; }
   nCli++;
   const nombre = nombreUnico(nombresCli, c.n);
@@ -191,17 +220,22 @@ for (const [quien, c] of [['proveedores', cuentaProv], ['clientes', cuentaCli]])
   if (c.largo) avisar(`${c.largo} datos de ${quien} eran más largos de lo permitido y se recortaron`);
 }
 
+for (const n of OMITIR_CLI) if (!omitidos.has(n)) { console.error(`--omitir-cliente: no hay ningún cliente «${n}» en el prototipo`); process.exit(1); }
+
 // Productos
 const encProd = ['Código', 'Nombre', 'Rubro', 'Tipo', 'Proveedor', 'Unidad', 'Costo', 'IVA', 'Stock', 'Stock mínimo', 'Stock ideal', 'Minorista', 'Mayorista',
   'Se vende', 'Se compra', 'Integra otros', 'Publicado web', ...XF.map(([, l]) => l)];
 const filasProd = [encProd];
 let unidades = 0, valorCosto = 0, conReceta = 0, stockNegativo = 0;
+/** id del prototipo → cómo se encuentra el producto en el sistema (código, o nombre si no tiene). */
+const claveProd = new Map();
 const codigos = new Map();
 const si = (b) => (b ? 'Sí' : 'No');
 for (const p of productos) {
   let cod = String(p.c ?? '').trim();
   if (cod && codigos.has(cod.toLowerCase())) { avisar(`Código repetido «${cod}»: «${codigos.get(cod.toLowerCase())}» y «${p.n}». Al segundo se le saca el código para que no pise al primero`); cod = ''; }
   if (cod) codigos.set(cod.toLowerCase(), p.n);
+  claveProd.set(p.id, { codigo: cod, nombre: p.n });
   let prov = '';
   if (!sinDato(p.pv)) {
     prov = provPorNombre.get(plano(p.pv)) ?? provAscii.get(asciiPlano(p.pv)) ?? '';
@@ -217,6 +251,27 @@ for (const p of productos) {
   filasProd.push([cod, p.n, p.r, p.tp || 'Mercadería', prov, sinDato(p.u) ? 'unidad' : String(p.u).trim().toLowerCase(), importe(centavos(p.k)), [0, 10.5, 21, 27].includes(iva) ? String(iva).replace('.', ',') : '21',
     cantidad(stock), cantidad(p.sm), cantidad(p.si), p.a ? importe(centavos(p.a)) : '', p.b ? importe(centavos(p.b)) : '',
     si(p.fv !== false), si(p.fc !== false), si(!!p.fi), si(!!p.fw), ...XF.map(([k]) => p[k] || '')]);
+}
+
+// Recetas: cada producto con ingredientes (cantidad para una tanda), cuánto rinde la tanda e instrucciones.
+// Los ingredientes se nombran por código o nombre, porque en el sistema los productos tienen otros identificadores.
+const recetas = [];
+let lineasReceta = 0;
+for (const p of productos) {
+  if (!Array.isArray(p.ing) || !p.ing.length) continue;
+  const ingredientes = [];
+  for (const i of p.ing) {
+    const k = claveProd.get(String(i.id));
+    const q = Math.round((Number(i.q) || 0) * 1000) / 1000;
+    if (!k) { avisar(`Receta de «${p.n}»: el ingrediente ${i.id} ya no existe en el prototipo, se omite`); continue; }
+    if (q <= 0) { avisar(`Receta de «${p.n}»: «${k.nombre}» tiene cantidad ${i.q} (menos de 0,001), se omite`); continue; }
+    const previo = ingredientes.find((x) => x.codigo === k.codigo && x.nombre === k.nombre);
+    if (previo) previo.cantidad = Math.round((previo.cantidad + q) * 1000) / 1000; else ingredientes.push({ ...k, cantidad: q });
+  }
+  if (!ingredientes.length) continue;
+  lineasReceta += ingredientes.length;
+  const rinde = Number(p.rinde) > 0 ? Math.round(Number(p.rinde) * 1000) / 1000 : 1;
+  recetas.push({ ...claveProd.get(p.id), rinde, instrucciones: String(p.instr ?? '').trim(), ingredientes });
 }
 
 // Cajas: saldo = suma de movimientos (como bal() del prototipo)
@@ -246,8 +301,9 @@ Generado el ${new Date().toISOString()} (UTC) con \`scripts/prototipo/exportar.m
 3. **Ajustes → Importar → Proveedores**: \`1-proveedores.csv\`.
 4. **Ajustes → Importar → Clientes**: \`2-clientes.csv\`.
 5. **Ajustes → Importar → Productos**: \`3-productos.csv\`.
-6. **Cajas**: cargar el saldo inicial de cada caja (tabla de abajo).
-7. Comparar los totales de control con lo que muestra el sistema.
+6. **Recetas**: \`4-recetas.json\` (${recetas.length} recetas; las carga \`cargar-prototipo.ts\`).
+7. **Cajas**: cargar el saldo inicial de cada caja (tabla de abajo).
+8. Comparar los totales de control con lo que muestra el sistema.
 
 ## Totales de control (tienen que coincidir después de importar)
 | Qué | Prototipo |
@@ -260,6 +316,8 @@ Generado el ${new Date().toISOString()} (UTC) con \`scripts/prototipo/exportar.m
 | Unidades en stock (suma) | ${cantidad(unidades)} |
 | Stock valorizado a costo (sin negativos) | ${$(valorCosto)} |
 | Productos con stock negativo | ${stockNegativo} |
+| Recetas (productos con ingredientes) | ${recetas.length} |
+| Ingredientes en recetas (renglones) | ${lineasReceta} |
 
 ## Categorías de cliente
 | Categoría | Lista | Descuento | Precio de costo | Cuenta corriente |
@@ -272,7 +330,6 @@ ${categorias.map((c) => `| ${c.n} | ${c.lista === 'b' ? 'Mayorista' : 'Minorista
 ${cajas.map((c) => `| ${c.n} | ${c.tipo} | ${$(c.saldo)}${c.fijado ? ` (fijado a mano; en el prototipo ${$(c.prototipo)})` : ''} | ${c.cerrada ? 'cerrada' : 'abierta'} |`).join('\n')}
 
 ## Lo que no viaja en los CSV
-- **Recetas**: ${conReceta} productos tienen receta en el prototipo; se cargan a mano en cada producto (o con una herramienta aparte si son muchas).
 - **Historial**: ventas, compras, movimientos de caja y de cuenta corriente anteriores quedan en el prototipo. El sistema arranca con saldos iniciales.
 - Usuarios y permisos, configuración de medios de pago, impuestos y comisiones: se cargan en Ajustes.
 
@@ -280,6 +337,7 @@ ${cajas.map((c) => `| ${c.n} | ${c.tipo} | ${$(c.saldo)}${c.fijado ? ` (fijado a
 ${avisos.length ? avisos.map((a) => `- ${a}`).join('\n') : '- Ninguno.'}
 `;
 writeFileSync(join(SALIDA, 'resumen.md'), resumen);
+writeFileSync(join(SALIDA, '4-recetas.json'), JSON.stringify(recetas, null, 2));
 // Lo que el cargador necesita además de los CSV, y los totales para controlar después de importar.
 writeFileSync(join(SALIDA, 'config.json'), JSON.stringify({
   anonimizado: ANON,
@@ -289,6 +347,7 @@ writeFileSync(join(SALIDA, 'config.json'), JSON.stringify({
   control: {
     proveedores: filasProv.length - 1, clientes: filasCli.length - 1, productos: filasProd.length - 1,
     saldoClientes: importe(saldoCli).replace(',', '.'), saldoProveedores: importe(saldoProv).replace(',', '.'),
+    recetas: recetas.length, lineasReceta,
     unidadesStock: (Math.round(unidades * 1000) / 1000).toFixed(3), valorStockCosto: importe(valorCosto).replace(',', '.'),
   },
 }, null, 2));
