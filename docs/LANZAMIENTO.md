@@ -12,7 +12,7 @@ Regla: staging solo con datos **anonimizados**; producción solo con el OK expl�
 node scripts/prototipo/exportar.mjs --html prototipo.html --base volcado/ --salida datos-reales/
 node scripts/prototipo/exportar.mjs --html prototipo.html --base volcado/ --salida datos-ensayo/ --anonimizar
 ```
-Si el dueño decide arrancar una caja con otro saldo, se agrega `--saldo-caja "Nombre=importe"` (se puede repetir). En Mística: `--saldo-caja "Mercadopago=0"`.
+Si el dueño decide arrancar una caja con otro saldo, se agrega `--saldo-caja "Nombre=importe"` (se puede repetir). En Mística: `--saldo-caja "Mercadopago=0" --saldo-caja "MercadoPago Empresa=159853"`.
 
 Cada carpeta queda con `1-proveedores.csv`, `2-clientes.csv`, `3-productos.csv`, `config.json` y `resumen.md` (orden de carga, totales de control, categorías, cajas y avisos). **Leer los avisos** antes de seguir.
 
