@@ -25,6 +25,7 @@ export const MAX_DETALLE = 300;
 const ETIQUETAS_CAMPO: Record<string, string> = {
   nombre: 'Nombre', telefono: 'Teléfono', email: 'Email', domicilio: 'Domicilio', localidad: 'Localidad', cuit: 'CUIT', condicion_iva: 'Condición IVA', contacto: 'Contacto',
   categoria: 'Categoría', codigo: 'Código', tipo: 'Tipo', unidad: 'Unidad', costo: 'Costo', iva: 'IVA', stock_minimo: 'Stock mínimo', stock_ideal: 'Stock ideal',
+  vendible: 'Se vende', comprable: 'Se compra', integrable: 'Integra otros', publicado_web: 'Publicado web',
 };
 const ES_NUMERO = /^-?\d+([.,]\d+)?$/;
 function mismoValor(a: unknown, b: unknown): boolean {
@@ -42,8 +43,8 @@ function describirCambios(antes: Record<string, unknown>, cambios: [string, unkn
       continue;
     }
     if (mismoValor(antes[col], val)) continue;
-    const previo = antes[col] === null || antes[col] === undefined || antes[col] === '' ? '(vacío)' : String(antes[col]);
-    salida.push(`${ETIQUETAS_CAMPO[col] ?? col}: ${previo} → ${val === null || val === '' ? '(vacío)' : String(val)}`);
+    const texto = (x: unknown) => (x === null || x === undefined || x === '' ? '(vacío)' : typeof x === 'boolean' ? (x ? 'Sí' : 'No') : String(x));
+    salida.push(`${ETIQUETAS_CAMPO[col] ?? col}: ${texto(antes[col])} → ${texto(val)}`);
   }
   return salida;
 }
@@ -102,6 +103,10 @@ const ALIAS: Record<string, string[]> = {
   stock: ['stock', 'stockactual', 'existencia', 'cantidad'],
   stockminimo: ['stockminimo', 'minimo', 'stockmin'],
   stockideal: ['stockideal', 'ideal', 'stockmax', 'stockmaximo'],
+  vendible: ['sevende', 'vendible', 'disponibleventa', 'disponibleparalaventa'],
+  comprable: ['secompra', 'comprable', 'disponiblecompra', 'disponibleparalacompra'],
+  integrable: ['integraotros', 'integrable', 'paraintegrarotrosproductos'],
+  publicadoweb: ['publicadoweb', 'publicadoenweb', 'publicadoenlaweb', 'tiendaonline'],
 };
 
 interface Tabla { columnas: Map<string, number>; encabezados: string[]; filas: { n: number; celdas: string[] }[] }
@@ -138,9 +143,10 @@ const tiene = (t: Tabla, clave: string): boolean => t.columnas.has(clave);
 function condicionIva(txt: string): 'consumidor_final' | 'responsable_inscripto' | 'monotributo' | 'exento' | null {
   const p = plano(txt);
   if (!p) return null;
+  // Monotributo antes que "responsable": "Responsable Monotributo" es monotributo, no inscripto.
+  if (p.includes('monotribut') || p === 'mono') return 'monotributo';
   if (p.startsWith('responsable') || p === 'ri' || p === 'inscripto') return 'responsable_inscripto';
-  if (p.startsWith('monotribut') || p === 'mono') return 'monotributo';
-  if (p.startsWith('exent')) return 'exento';
+  if (p.startsWith('exent') || p.endsWith('exento')) return 'exento';
   if (p.startsWith('consumidor') || p === 'cf') return 'consumidor_final';
   throw new ErrorDeUsuario(`Condición frente al IVA desconocida: "${txt}" (usá Consumidor Final, Responsable Inscripto, Monotributo o Exento)`);
 }
@@ -150,6 +156,15 @@ function importeConSigno(txt: string, campo: string): string | null {
   const n = normalizarImporte(txt);
   if (n === null) throw new ErrorDeUsuario(`${campo}: "${txt}" no es un importe válido`);
   return n;
+}
+
+/** "Sí"/"No" de una planilla. Vacío = sin dato (null). */
+export function siNo(txt: string, campo: string): boolean | null {
+  const p = plano(txt);
+  if (!p) return null;
+  if (['si', 's', 'x', '1', 'true', 'verdadero'].includes(p)) return true;
+  if (['no', 'n', '0', 'false', 'falso'].includes(p)) return false;
+  throw new ErrorDeUsuario(`${campo}: "${txt}" no es Sí ni No`);
 }
 
 class Simulacion extends Error {
@@ -324,10 +339,16 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         const txt = (f.celdas[i] ?? '').trim();
         if (txt) extras[datoId] = txt;
       }
+      // Marcas opcionales (Sí/No). Sin columna o vacías: al crear valen lo de siempre y al actualizar no se tocan.
+      const marcas = {
+        vendible: siNo(celda(t, f, 'vendible'), 'Se vende'), comprable: siNo(celda(t, f, 'comprable'), 'Se compra'),
+        integrable: siNo(celda(t, f, 'integrable'), 'Integra otros'), publicadoWeb: siNo(celda(t, f, 'publicadoweb'), 'Publicado web'),
+      };
       const v = esquemaProducto.safeParse({
         codigo: celda(t, f, 'codigo'), nombre, rubroId, tipo: celda(t, f, 'tipo'), unidad: celda(t, f, 'unidad') || 'unidad', costo: celda(t, f, 'costo'),
         stockMinimo: cant('stockminimo', 'Stock mínimo'), stockIdeal: cant('stockideal', 'Stock ideal'), iva: alicuotaDe(celda(t, f, 'iva')),
-        vendible: true, comprable: true, integrable: true, publicadoWeb: false, urlWeb: '', precios, proveedorId, extras,
+        vendible: marcas.vendible ?? true, comprable: marcas.comprable ?? true, integrable: marcas.integrable ?? true, publicadoWeb: marcas.publicadoWeb ?? false,
+        urlWeb: '', precios, proveedorId, extras,
       });
       if (!v.success) throw new ErrorDeUsuario(primerError(v.error));
       const d = v.data;
@@ -346,6 +367,8 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
         const poner = (col: string, clave: string, valor: unknown) => { if (tiene(t, clave) && celda(t, f, clave) !== '') cambios.push([col, valor]); };
         poner('nombre', 'nombre', d.nombre); poner('codigo', 'codigo', d.codigo); poner('tipo', 'tipo', d.tipo); poner('unidad', 'unidad', d.unidad); poner('costo', 'costo', d.costo);
         poner('iva', 'iva', d.iva); poner('stock_minimo', 'stockminimo', d.stockMinimo); poner('stock_ideal', 'stockideal', d.stockIdeal);
+        poner('vendible', 'vendible', d.vendible); poner('comprable', 'comprable', d.comprable); poner('integrable', 'integrable', d.integrable);
+        poner('publicado_web', 'publicadoweb', d.publicadoWeb);
         if (rubroId) cambios.push(['rubro_id', rubroId]);
         if (proveedorId) cambios.push(['proveedor_id', proveedorId]);
         if (Object.keys(extras).length) cambios.push(['datos_extra', JSON.stringify(extras)]);
@@ -382,6 +405,8 @@ async function importarProductos(c: PoolClient, s: SesionActiva, t: Tabla, actua
       await c.query('RELEASE SAVEPOINT fila');
     } catch (e) {
       await c.query('ROLLBACK TO SAVEPOINT fila');
+      // Los rubros creados en esta fila se deshicieron con el savepoint: no pueden quedar en la memoria para la fila siguiente.
+      cacheRubros.clear();
       anotarError(res, f.n, e);
     }
   }
@@ -420,8 +445,8 @@ export function plantilla(tipo: TipoImportacion, listas: string[]): string {
       ['Distribuidora Andes', 'Carlos', 'Mercadería', '2615551111', 'ventas@andes.com', 'Belgrano 45', 'Godoy Cruz', '30712345678', 'Responsable Inscripto', '0'],
     ],
     productos: [
-      ['Código', 'Nombre', 'Rubro', 'Tipo', 'Proveedor', 'Unidad', 'Costo', 'IVA', 'Stock', 'Stock mínimo', 'Stock ideal', ...listas],
-      ['A001', 'Miel 500g', 'Almacén > Dulces', 'Miel', '', 'unidad', '2500', '21', '12', '4', '20', ...listas.map(() => '4500')],
+      ['Código', 'Nombre', 'Rubro', 'Tipo', 'Proveedor', 'Unidad', 'Costo', 'IVA', 'Stock', 'Stock mínimo', 'Stock ideal', 'Se vende', 'Se compra', 'Integra otros', 'Publicado web', ...listas],
+      ['A001', 'Miel 500g', 'Almacén > Dulces', 'Miel', '', 'unidad', '2500', '21', '12', '4', '20', 'Sí', 'Sí', 'No', 'No', ...listas.map(() => '4500')],
     ],
   };
   return filas[tipo].map((f) => f.map((x) => (/[;"\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x)).join(';')).join('\r\n') + '\r\n';
